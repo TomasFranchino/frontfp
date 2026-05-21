@@ -1,0 +1,155 @@
+import { useNavigate } from 'react-router-dom';
+import { z } from 'zod';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { ArrowLeft, Clock3, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
+
+import api from '@/lib/api';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
+
+type ClaseHoy = {
+  slot_id: number;
+  materia_nombre: string;
+  hora_inicio: string;
+  hora_fin: string;
+};
+
+const asincronicaSchema = z.object({
+  slot_horario_id: z.coerce.number().min(1, 'Debes seleccionar una clase.'),
+  fecha_dictado: z.string().min(1, 'La fecha es obligatoria.'),
+  nota: z.string().min(5, 'Por favor provee un detalle mínimo de la clase.'),
+});
+
+type AsincronicaValues = z.infer<typeof asincronicaSchema>;
+
+export function DeclararAsincronicaPage() {
+  const navigate = useNavigate();
+
+  const form = useForm<AsincronicaValues>({
+    resolver: zodResolver(asincronicaSchema) as any,
+    defaultValues: {
+      slot_horario_id: 0,
+      fecha_dictado: new Date().toISOString().split('T')[0], // Hoy en AAAA-MM-DD
+      nota: '',
+    },
+  });
+
+  const { data: clasesHoy, isLoading } = useQuery({
+    queryKey: ['asistencia', 'mis_clases_hoy'],
+    queryFn: async () => {
+      const { data } = await api.get<ClaseHoy[]>('/asistencia/mis_clases_hoy');
+      return data;
+    },
+  });
+
+  const submitMutation = useMutation({
+    mutationFn: async (payload: AsincronicaValues) => {
+      const { data } = await api.post('/asistencia/asincronica/declarar', payload);
+      return data;
+    },
+    onSuccess: () => {
+      toast.success('Clase asincrónica declarada correctamente.');
+      navigate('/docente/dashboard');
+    },
+  });
+
+  const onSubmit = (values: AsincronicaValues) => {
+    submitMutation.mutate(values);
+  };
+
+  return (
+    <div className="mx-auto max-w-md space-y-6">
+      <header className="flex items-center gap-4">
+        <Button variant="ghost" size="icon" onClick={() => navigate('/docente/dashboard')} className="shrink-0">
+          <ArrowLeft className="h-6 w-6" />
+        </Button>
+        <div>
+          <h1 className="text-xl font-semibold text-primary">Clase Asincrónica</h1>
+          <p className="text-sm text-muted-foreground">Declará el dictado de una clase a distancia.</p>
+        </div>
+      </header>
+
+      <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+        <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-6">
+          <div className="space-y-3">
+            <Label className="text-base" htmlFor="slot_horario_id">Clase de Hoy</Label>
+            {isLoading ? (
+              <Skeleton className="h-12 w-full rounded-xl" />
+            ) : !clasesHoy || clasesHoy.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-border bg-muted/50 p-4 text-center text-sm text-muted-foreground">
+                No tenés clases sincronizadas para hoy.
+              </div>
+            ) : (
+              <Select
+                value={form.watch('slot_horario_id').toString()}
+                onValueChange={(val) => form.setValue('slot_horario_id', Number(val))}
+              >
+                <SelectTrigger className="h-12 rounded-xl text-base">
+                  <SelectValue placeholder="Seleccioná la materia..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {clasesHoy.map((clase) => (
+                    <SelectItem key={clase.slot_id} value={clase.slot_id.toString()}>
+                      {clase.materia_nombre} ({clase.hora_inicio} - {clase.hora_fin})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {form.formState.errors.slot_horario_id && (
+              <p className="text-sm text-destructive">{form.formState.errors.slot_horario_id.message}</p>
+            )}
+          </div>
+
+          <div className="space-y-3">
+            <Label className="text-base" htmlFor="fecha_dictado">Fecha de dictado</Label>
+            <Input
+              id="fecha_dictado"
+              type="date"
+              className="h-12 rounded-xl text-base"
+              {...form.register('fecha_dictado')}
+            />
+            {form.formState.errors.fecha_dictado && (
+              <p className="text-sm text-destructive">{form.formState.errors.fecha_dictado.message}</p>
+            )}
+          </div>
+
+          <div className="space-y-3">
+            <Label className="text-base" htmlFor="nota">Detalles / Nota</Label>
+            <Textarea
+              id="nota"
+              placeholder="Ej: Se subió el trabajo práctico al campus virtual y se asignaron lecturas."
+              className="min-h-[120px] rounded-xl resize-none text-base"
+              {...form.register('nota')}
+            />
+            {form.formState.errors.nota && (
+              <p className="text-sm text-destructive">{form.formState.errors.nota.message}</p>
+            )}
+          </div>
+
+          <Button
+            type="submit"
+            className="h-14 w-full rounded-2xl text-lg mt-4 gap-2"
+            disabled={submitMutation.isPending || (!clasesHoy?.length && !isLoading)}
+          >
+            {submitMutation.isPending ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : (
+              <>
+                <Clock3 className="h-5 w-5" />
+                Declarar Clase
+              </>
+            )}
+          </Button>
+        </form>
+      </div>
+    </div>
+  );
+}
