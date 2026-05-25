@@ -5,15 +5,23 @@ axios.defaults.withCredentials = true;
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL,
   withCredentials: true,
-  xsrfCookieName: 'csrftoken',
-  xsrfHeaderName: 'X-CSRFToken',
   headers: {
     Accept: 'application/json',
     'Content-Type': 'application/json',
   },
 });
 
-function getCookieValue(cookieName: string) {
+// ---------------------------------------------------------------------------
+// CSRF Token Management (compatible con same-origin y cross-origin)
+// ---------------------------------------------------------------------------
+
+/** Token cacheado en memoria para evitar requests extras al endpoint */
+let cachedCsrfToken: string | null = null;
+
+/** Promesa en vuelo para evitar requests duplicados al endpoint CSRF */
+let csrfFetchPromise: Promise<string | null> | null = null;
+
+function getCookieValue(cookieName: string): string | null {
   if (typeof document === 'undefined') {
     return null;
   }
@@ -25,6 +33,58 @@ function getCookieValue(cookieName: string) {
     .find((cookie) => cookie.startsWith(cookiePrefix))
     ?.slice(cookiePrefix.length) ?? null;
 }
+
+/**
+ * Obtiene el CSRF token con la siguiente prioridad:
+ * 1. Cookie (funciona en desarrollo same-origin)
+ * 2. Caché en memoria (evita requests repetidas en producción)
+ * 3. Endpoint /csrf/token (producción cross-origin)
+ */
+async function getCSRFToken(): Promise<string | null> {
+  // 1. Intentar leer de la cookie (funciona en desarrollo same-origin)
+  const fromCookie = getCookieValue('csrftoken');
+  if (fromCookie) {
+    cachedCsrfToken = fromCookie;
+    return fromCookie;
+  }
+
+  // 2. Si ya lo tenemos cacheado en memoria (producción cross-origin)
+  if (cachedCsrfToken) {
+    return cachedCsrfToken;
+  }
+
+  // 3. Obtener del endpoint (primera vez en producción cross-origin)
+  //    Usamos una promesa compartida para evitar requests duplicados
+  //    si múltiples peticiones se disparan al mismo tiempo.
+  if (!csrfFetchPromise) {
+    csrfFetchPromise = axios
+      .get<{ csrftoken: string }>(`${import.meta.env.VITE_API_URL}/csrf/token`, {
+        withCredentials: true,
+      })
+      .then(({ data }) => {
+        cachedCsrfToken = data.csrftoken;
+        return cachedCsrfToken;
+      })
+      .catch(() => null)
+      .finally(() => {
+        csrfFetchPromise = null;
+      });
+  }
+
+  return csrfFetchPromise;
+}
+
+/**
+ * Invalida el token CSRF cacheado.
+ * Se llama cuando el servidor rechaza con 403 para forzar un refresh.
+ */
+export function invalidateCsrfToken(): void {
+  cachedCsrfToken = null;
+}
+
+// ---------------------------------------------------------------------------
+// Error Formatting
+// ---------------------------------------------------------------------------
 
 function getApiErrorMessage(error: unknown) {
   if (!axios.isAxiosError(error)) {
@@ -49,12 +109,16 @@ function getApiErrorMessage(error: unknown) {
   return 'No se pudo conectar con el servidor.';
 }
 
-api.interceptors.request.use((config) => {
+// ---------------------------------------------------------------------------
+// Request Interceptor — Inyecta X-CSRFToken en métodos unsafe
+// ---------------------------------------------------------------------------
+
+api.interceptors.request.use(async (config) => {
   const method = config.method?.toUpperCase() ?? 'GET';
   const isUnsafeMethod = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method);
 
   if (isUnsafeMethod) {
-    const csrfToken = getCookieValue('csrftoken');
+    const csrfToken = await getCSRFToken();
 
     if (csrfToken) {
       config.headers = config.headers ?? {};
@@ -64,6 +128,10 @@ api.interceptors.request.use((config) => {
 
   return config;
 });
+
+// ---------------------------------------------------------------------------
+// Response Interceptor — Manejo de 401 y errores globales
+// ---------------------------------------------------------------------------
 
 api.interceptors.response.use(
   (response) => response,
@@ -80,6 +148,12 @@ api.interceptors.response.use(
       }
 
       return Promise.reject(error);
+    }
+
+    // Si el servidor rechaza con 403 CSRF, invalidamos el token cacheado
+    // para que la próxima petición obtenga uno nuevo.
+    if (status === 403) {
+      invalidateCsrfToken();
     }
 
     if (status >= 400 || !status) {

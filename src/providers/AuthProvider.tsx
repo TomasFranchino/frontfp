@@ -34,7 +34,7 @@ const authMeQueryKey = ['auth', 'me'] as const;
 
 async function fetchCurrentUser(): Promise<AuthUser | null> {
   try {
-    const { data } = await api.get<AuthUser>('/auth/me', {
+    const { data } = await api.get<AuthUser>(`/auth/me?t=${Date.now()}`, {
       headers: { 'X-Skip-Toast': '1' },
     });
 
