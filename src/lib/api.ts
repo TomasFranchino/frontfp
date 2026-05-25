@@ -13,8 +13,6 @@ const api = axios.create({
   },
 });
 
-let csrfBootstrapPromise: Promise<void> | null = null;
-
 function getCookieValue(cookieName: string) {
   if (typeof document === 'undefined') {
     return null;
@@ -26,29 +24,6 @@ function getCookieValue(cookieName: string) {
     .split('; ')
     .find((cookie) => cookie.startsWith(cookiePrefix))
     ?.slice(cookiePrefix.length) ?? null;
-}
-
-async function ensureCsrfCookie() {
-  if (getCookieValue('csrftoken')) {
-    return;
-  }
-
-  if (!csrfBootstrapPromise) {
-    csrfBootstrapPromise = axios
-      .get('/auth/csrf', {
-        baseURL: import.meta.env.VITE_API_URL,
-        withCredentials: true,
-        headers: {
-          'X-Skip-Toast': '1',
-        },
-      })
-      .then(() => undefined)
-      .finally(() => {
-        csrfBootstrapPromise = null;
-      });
-  }
-
-  await csrfBootstrapPromise;
 }
 
 function getApiErrorMessage(error: unknown) {
@@ -74,13 +49,11 @@ function getApiErrorMessage(error: unknown) {
   return 'No se pudo conectar con el servidor.';
 }
 
-api.interceptors.request.use(async (config) => {
+api.interceptors.request.use((config) => {
   const method = config.method?.toUpperCase() ?? 'GET';
   const isUnsafeMethod = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method);
 
   if (isUnsafeMethod) {
-    await ensureCsrfCookie();
-
     const csrfToken = getCookieValue('csrftoken');
 
     if (csrfToken) {
