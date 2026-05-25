@@ -71,7 +71,7 @@ api.interceptors.response.use(
     const status = error?.response?.status;
     const url = error?.config?.url;
 
-    const isAuthEndpoint = typeof url === 'string' && url.startsWith('/auth/');
+    const isAuthEndpoint = typeof url === 'string' && /(?:^|\/)auth\//.test(url);
 
     if (status === 401 && !isAuthEndpoint) {
 
