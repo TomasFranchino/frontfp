@@ -34,7 +34,9 @@ const authMeQueryKey = ['auth', 'me'] as const;
 
 async function fetchCurrentUser(): Promise<AuthUser | null> {
   try {
-    const { data } = await api.get<AuthUser>('/auth/me');
+    const { data } = await api.get<AuthUser>('/auth/me', {
+      headers: { 'X-Skip-Toast': '1' },
+    });
 
     return data;
   } catch (error) {
@@ -49,7 +51,11 @@ async function fetchCurrentUser(): Promise<AuthUser | null> {
 }
 
 async function loginRequest(credentials: LoginInput): Promise<AuthUser> {
-  const { data } = await api.post<AuthUser>('/auth/login', credentials);
+  const { data } = await api.post<AuthUser>('/auth/login', credentials, {
+    headers: {
+      'X-Skip-Toast': '1',
+    },
+  });
 
   return data;
 }

@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, UserMinus } from 'lucide-react';
+import { Plus, UserMinus, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 
 import api from '@/lib/api';
@@ -13,7 +13,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 type PerfilUsuario = {
   id: number;
@@ -29,12 +28,19 @@ type Docente = {
   activo: boolean;
 };
 
+type CarreraResumen = {
+  id: number;
+  codigo: string;
+  nombre: string;
+};
+
 type Materia = {
   id: number;
   codigo_siu: string;
   nombre: string;
   anio: number;
   activa: boolean;
+  carreras?: CarreraResumen[];
 };
 
 type Asignacion = {
@@ -63,12 +69,12 @@ async function fetchAsignaciones(): Promise<Asignacion[]> {
 }
 
 async function fetchDocentes(): Promise<Docente[]> {
-  const { data } = await api.get<Docente[]>('/auth/docentes');
+  const { data } = await api.get<Docente[]>('/auth/docentes?incluir_inactivos=true');
   return data;
 }
 
 async function fetchMaterias(): Promise<Materia[]> {
-  const { data } = await api.get<Materia[]>('/academico/materias');
+  const { data } = await api.get<Materia[]>('/academico/materias?incluir_inactivas=true');
   return data;
 }
 
@@ -78,6 +84,14 @@ async function createAsignacion(payload: AsignacionFormValues): Promise<Asignaci
     fecha_fin: payload.fecha_fin || null,
   });
 
+  return data;
+}
+
+async function updateAsignacion({ id, payload }: { id: number; payload: AsignacionFormValues }): Promise<Asignacion> {
+  const { data } = await api.put<Asignacion>(`/asignaciones/${id}`, {
+    ...payload,
+    fecha_fin: payload.fecha_fin || null,
+  });
   return data;
 }
 
@@ -94,9 +108,19 @@ function getDocenteName(docente?: Docente) {
   return fullName || docente.user.username;
 }
 
+function getMateriaLabel(materia?: Materia | null) {
+  if (!materia) {
+    return 'Materia no encontrada';
+  }
+
+  const carrerasCodigo = materia.carreras?.map((carrera) => carrera.codigo).join(', ');
+  return carrerasCodigo ? `${materia.nombre} (${carrerasCodigo})` : materia.nombre;
+}
+
 export function AsignacionesPage() {
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingAsignacion, setEditingAsignacion] = useState<Asignacion | null>(null);
 
   const {
     data: asignaciones,
@@ -120,10 +144,41 @@ export function AsignacionesPage() {
   const docentesById = useMemo(() => new Map((docentes ?? []).map((docente) => [docente.id, docente])), [docentes]);
   const materiasById = useMemo(() => new Map((materias ?? []).map((materia) => [materia.id, materia])), [materias]);
 
-  const activeAsignaciones = useMemo(
-    () => (asignaciones ?? []).filter((asignacion) => asignacion.activa !== false),
-    [asignaciones],
-  );
+  const groupedAsignaciones = useMemo(() => {
+    if (!asignaciones || !docentes) return [];
+
+    const activeList = asignaciones.filter((a) => a.activa !== false);
+    const groupsMap = new Map<number, Asignacion[]>();
+
+    for (const asignacion of activeList) {
+      if (!groupsMap.has(asignacion.docente_id)) {
+        groupsMap.set(asignacion.docente_id, []);
+      }
+      groupsMap.get(asignacion.docente_id)!.push(asignacion);
+    }
+
+    const list = Array.from(groupsMap.entries()).map(([docenteId, listAsignaciones]) => {
+      const docente = docentesById.get(docenteId);
+
+      const sortedAsignaciones = [...listAsignaciones].sort((a, b) => {
+        const matA = materiasById.get(a.materia_id)?.nombre ?? '';
+        const matB = materiasById.get(b.materia_id)?.nombre ?? '';
+        return matA.localeCompare(matB);
+      });
+
+      return {
+        docenteId,
+        docente,
+        asignaciones: sortedAsignaciones,
+      };
+    });
+
+    return list.sort((a, b) => {
+      const nameA = getDocenteName(a.docente);
+      const nameB = getDocenteName(b.docente);
+      return nameA.localeCompare(nameB);
+    });
+  }, [asignaciones, docentes, docentesById, materiasById]);
 
   const form = useForm<AsignacionFormValues>({
     resolver: zodResolver(asignacionSchema) as any,
@@ -152,6 +207,23 @@ export function AsignacionesPage() {
     },
   });
 
+  const updateMutation = useMutation({
+    mutationFn: updateAsignacion,
+    onSuccess: () => {
+      toast.success('Asignación actualizada correctamente.');
+      queryClient.invalidateQueries({ queryKey: ['asignaciones'] });
+      setIsDialogOpen(false);
+      setEditingAsignacion(null);
+      form.reset({
+        docente_id: 0,
+        materia_id: 0,
+        rol: 'titular',
+        fecha_inicio: new Date().toISOString().slice(0, 10),
+        fecha_fin: '',
+      });
+    },
+  });
+
   const deactivateMutation = useMutation({
     mutationFn: deactivateAsignacion,
     onSuccess: () => {
@@ -163,6 +235,7 @@ export function AsignacionesPage() {
   const isLoading = isLoadingAsignaciones || isLoadingDocentes || isLoadingMaterias;
 
   const handleOpenDialog = () => {
+    setEditingAsignacion(null);
     form.reset({
       docente_id: 0,
       materia_id: 0,
@@ -173,8 +246,43 @@ export function AsignacionesPage() {
     setIsDialogOpen(true);
   };
 
+  const handleAssignToDocente = (docenteId: number) => {
+    setEditingAsignacion(null);
+    form.reset({
+      docente_id: docenteId,
+      materia_id: 0,
+      rol: 'titular',
+      fecha_inicio: new Date().toISOString().slice(0, 10),
+      fecha_fin: '',
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handleEditAsignacion = (asignacion: Asignacion) => {
+    setEditingAsignacion(asignacion);
+    form.reset({
+      docente_id: asignacion.docente_id,
+      materia_id: asignacion.materia_id,
+      rol: asignacion.rol,
+      fecha_inicio: asignacion.fecha_inicio,
+      fecha_fin: asignacion.fecha_fin || '',
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handleOpenChange = (open: boolean) => {
+    setIsDialogOpen(open);
+    if (!open) {
+      setEditingAsignacion(null);
+    }
+  };
+
   const onSubmit = (values: AsignacionFormValues) => {
-    createMutation.mutate(values);
+    if (editingAsignacion && editingAsignacion.id) {
+      updateMutation.mutate({ id: editingAsignacion.id, payload: values });
+    } else {
+      createMutation.mutate(values);
+    }
   };
 
   return (
@@ -190,75 +298,141 @@ export function AsignacionesPage() {
         </Button>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+      <div>
         {isLoading ? (
-          <div className="space-y-4 p-6">
+          <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm space-y-4 p-6">
             <Skeleton className="h-8 w-full" />
             <Skeleton className="h-8 w-full" />
             <Skeleton className="h-8 w-full" />
           </div>
         ) : isAsignacionesError ? (
-          <div className="p-6 text-center text-destructive">Ocurrió un error al cargar las asignaciones.</div>
-        ) : activeAsignaciones.length === 0 ? (
-          <div className="p-10 text-center text-muted-foreground">No hay asignaciones activas registradas.</div>
+          <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm p-6 text-center text-destructive">
+            Ocurrió un error al cargar las asignaciones.
+          </div>
+        ) : groupedAsignaciones.length === 0 ? (
+          <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm p-10 text-center text-muted-foreground">
+            No hay asignaciones activas registradas.
+          </div>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Docente</TableHead>
-                <TableHead>Materia</TableHead>
-                <TableHead>Rol</TableHead>
-                <TableHead>Inicio</TableHead>
-                <TableHead>Fin</TableHead>
-                <TableHead className="w-[120px] text-right"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {activeAsignaciones.map((asignacion) => {
-                const docente = docentesById.get(asignacion.docente_id);
-                const materia = materiasById.get(asignacion.materia_id);
+          <div className="grid gap-4 grid-cols-1 xl:grid-cols-2">
+            {groupedAsignaciones.map(({ docenteId, docente, asignaciones: docenteAsignaciones }) => (
+              <div
+                key={docenteId}
+                className="p-5 rounded-xl border border-border bg-card shadow-sm hover:shadow-md transition-all duration-200 min-w-0 overflow-hidden"
+              >
+                <div className="flex items-center justify-between mb-4 border-b border-border/40 pb-2">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-semibold text-base text-primary uppercase tracking-wide">
+                        {getDocenteName(docente)}
+                      </h3>
+                      {docente && !docente.activo && (
+                        <span className="inline-flex items-center rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive ring-1 ring-inset ring-destructive/20">
+                          Inactivo
+                        </span>
+                      )}
+                    </div>
+                    {docente?.user?.username ? (
+                      <p className="text-xs text-muted-foreground font-mono">
+                        DNI/Legajo: {docente.user.username}
+                      </p>
+                    ) : null}
+                  </div>
+                  {docente && docente.activo && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:bg-accent hover:text-accent-foreground shrink-0"
+                      onClick={() => handleAssignToDocente(docente.id)}
+                      title="Nueva asignación"
+                      aria-label={`Asignar materia a ${getDocenteName(docente)}`}
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
 
-                return (
-                  <TableRow key={asignacion.id ?? `${asignacion.docente_id}-${asignacion.materia_id}-${asignacion.fecha_inicio}`}>
-                    <TableCell className="font-medium text-primary">{getDocenteName(docente)}</TableCell>
-                    <TableCell>
-                      <div className="space-y-0.5">
-                        <p>{materia?.nombre ?? 'Materia no encontrada'}</p>
-                        {materia?.codigo_siu ? <p className="text-xs text-muted-foreground">{materia.codigo_siu}</p> : null}
-                      </div>
-                    </TableCell>
-                    <TableCell className="capitalize">{asignacion.rol}</TableCell>
-                    <TableCell>{asignacion.fecha_inicio}</TableCell>
-                    <TableCell>{asignacion.fecha_fin || '-'}</TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        className="gap-2"
-                        disabled={!asignacion.id || deactivateMutation.isPending}
-                        onClick={() => {
-                          if (asignacion.id && confirm('¿Desactivar esta asignación?')) {
-                            deactivateMutation.mutate(asignacion.id);
-                          }
-                        }}
+                <div className="space-y-2 font-mono text-sm pl-2">
+                  {docenteAsignaciones.map((asignacion, index) => {
+                    const isLast = index === docenteAsignaciones.length - 1;
+                    const connector = isLast ? '└──' : '├──';
+                    const materia = materiasById.get(asignacion.materia_id);
+
+                    return (
+                      <div
+                        key={asignacion.id ?? `${asignacion.docente_id}-${asignacion.materia_id}-${asignacion.fecha_inicio}`}
+                        className="flex items-center justify-between py-1.5 hover:bg-accent/40 rounded px-2 transition-colors group"
                       >
-                        <UserMinus className="h-4 w-4" />
-                        Desactivar
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+                        <div className="flex flex-col gap-0.5 text-muted-foreground group-hover:text-primary transition-colors flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap min-w-0">
+                            <span className="text-muted-foreground/60 select-none shrink-0">{connector}</span>
+                            <span className="font-semibold text-foreground truncate min-w-0">
+                              {materia?.nombre ?? 'Materia no encontrada'}
+                            </span>
+                            {materia?.carreras && materia.carreras.length > 0 && (
+                              <span className="text-xs text-muted-foreground font-normal">
+                                ({materia.carreras.map((c) => c.codigo).join(', ')})
+                              </span>
+                            )}
+                            {materia && !materia.activa && (
+                              <span className="inline-flex items-center rounded-full bg-destructive/10 px-1.5 py-0.5 text-[10px] font-medium text-destructive ring-1 ring-inset ring-destructive/10 shrink-0">
+                                Inactiva
+                              </span>
+                            )}
+                          </div>
+                          <div className="pl-8 text-xs text-muted-foreground flex flex-wrap gap-x-3 gap-y-0.5">
+                            <span className="capitalize font-medium text-foreground/80">Rol: {asignacion.rol}</span>
+                            <span>Desde: {asignacion.fecha_inicio}</span>
+                            {asignacion.fecha_fin ? <span>Hasta: {asignacion.fecha_fin}</span> : null}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity ml-2 shrink-0">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                            onClick={() => handleEditAsignacion(asignacion)}
+                            title="Editar asignación"
+                            aria-label="Editar asignación"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            disabled={!asignacion.id || deactivateMutation.isPending}
+                            onClick={() => {
+                              if (asignacion.id && confirm('¿Desactivar esta asignación?')) {
+                                deactivateMutation.mutate(asignacion.id);
+                              }
+                            }}
+                            title="Desactivar asignación"
+                            aria-label="Desactivar asignación"
+                          >
+                            <UserMinus className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
         )}
       </div>
 
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      <Dialog open={isDialogOpen} onOpenChange={handleOpenChange}>
         <DialogContent className="sm:max-w-[520px]">
           <DialogHeader>
-            <DialogTitle>Nueva Asignación</DialogTitle>
-            <DialogDescription>Completá los datos para asignar un docente a una materia.</DialogDescription>
+            <DialogTitle>{editingAsignacion ? 'Editar Asignación' : 'Nueva Asignación'}</DialogTitle>
+            <DialogDescription>
+              {editingAsignacion
+                ? 'Modificá los datos de la asignación del docente.'
+                : 'Completá los datos para asignar un docente a una materia.'}
+            </DialogDescription>
           </DialogHeader>
 
           <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-4 py-4">
@@ -273,10 +447,10 @@ export function AsignacionesPage() {
                 </SelectTrigger>
                 <SelectContent>
                   {(docentes ?? [])
-                    .filter((docente) => docente.activo)
+                    .filter((docente) => docente.activo || docente.id === form.watch('docente_id'))
                     .map((docente) => (
                       <SelectItem key={docente.id} value={String(docente.id)}>
-                        {getDocenteName(docente)}
+                        {getDocenteName(docente)}{!docente.activo && ' (Inactivo)'}
                       </SelectItem>
                     ))}
                 </SelectContent>
@@ -297,10 +471,10 @@ export function AsignacionesPage() {
                 </SelectTrigger>
                 <SelectContent>
                   {(materias ?? [])
-                    .filter((materia) => materia.activa)
+                    .filter((materia) => materia.activa || materia.id === form.watch('materia_id'))
                     .map((materia) => (
                       <SelectItem key={materia.id} value={String(materia.id)}>
-                        {materia.nombre}
+                        {getMateriaLabel(materia)}{!materia.activa && ' (Inactiva)'}
                       </SelectItem>
                     ))}
                 </SelectContent>
@@ -335,8 +509,8 @@ export function AsignacionesPage() {
               <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
                 Cancelar
               </Button>
-              <Button type="submit" disabled={createMutation.isPending}>
-                Crear Asignación
+              <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
+                {editingAsignacion ? 'Guardar Cambios' : 'Crear Asignación'}
               </Button>
             </div>
           </form>

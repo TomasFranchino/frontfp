@@ -9,12 +9,14 @@ import { toast } from 'sonner';
 import api from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 
 type ClaseHoy = {
   slot_id: number;
+  carreras_codigos: string;
   materia_nombre: string;
   hora_inicio: string;
   hora_fin: string;
@@ -22,7 +24,8 @@ type ClaseHoy = {
 
 const emergenciaSchema = z.object({
   slot_horario_id: z.coerce.number().optional().or(z.literal(0)), // 0 means unselected/general
-  nota_docente: z.string().min(10, 'Por favor explica detalladamente el problema o incidencia.'),
+  nota_docente: z.string().min(10, 'Por favor explicá detalladamente el problema o incidencia.'),
+  fecha: z.string().min(1, 'La fecha es obligatoria.'),
 });
 
 type EmergenciaValues = z.infer<typeof emergenciaSchema>;
@@ -35,13 +38,18 @@ export function EmergenciaFormPage() {
     defaultValues: {
       slot_horario_id: 0,
       nota_docente: '',
+      fecha: new Date().toISOString().split('T')[0],
     },
   });
 
+  const watchFecha = form.watch('fecha') || new Date().toISOString().split('T')[0];
+
   const { data: clasesHoy, isLoading } = useQuery({
-    queryKey: ['asistencia', 'mis_clases_hoy'],
+    queryKey: ['asistencia', 'mis_clases_hoy', watchFecha],
     queryFn: async () => {
-      const { data } = await api.get<ClaseHoy[]>('/asistencia/mis_clases_hoy');
+      const { data } = await api.get<ClaseHoy[]>('/asistencia/mis_clases_hoy', {
+        params: { fecha: watchFecha }
+      });
       return data;
     },
   });
@@ -81,6 +89,19 @@ export function EmergenciaFormPage() {
       <div className="rounded-2xl border border-destructive/20 bg-destructive/5 p-6 shadow-sm">
         <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-6">
           <div className="space-y-3">
+            <Label className="text-base" htmlFor="fecha">Fecha de la Ausencia / Incidencia</Label>
+            <Input
+              id="fecha"
+              type="date"
+              className="h-12 rounded-xl text-base bg-background"
+              {...form.register('fecha')}
+            />
+            {form.formState.errors.fecha && (
+              <p className="text-sm text-destructive">{form.formState.errors.fecha.message}</p>
+            )}
+          </div>
+
+          <div className="space-y-3">
             <Label className="text-base" htmlFor="slot_horario_id">Clase Afectada (Opcional)</Label>
             {isLoading ? (
               <Skeleton className="h-12 w-full rounded-xl" />
@@ -96,20 +117,20 @@ export function EmergenciaFormPage() {
                   <SelectItem value="0">Toda la jornada / General</SelectItem>
                   {clasesHoy?.map((clase) => (
                     <SelectItem key={clase.slot_id} value={clase.slot_id.toString()}>
-                      {clase.materia_nombre} ({clase.hora_inicio} - {clase.hora_fin})
+                      {clase.materia_nombre} {clase.carreras_codigos ? `(${clase.carreras_codigos})` : '(Sin carrera)'} ({clase.hora_inicio} - {clase.hora_fin})
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             )}
-            <p className="text-xs text-muted-foreground">Si el problema es general, no selecciones ninguna.</p>
+            <p className="text-xs text-muted-foreground">Si el inconveniente es global o abarca todo el día, déjalo en General.</p>
           </div>
 
           <div className="space-y-3">
             <Label className="text-base font-medium text-destructive" htmlFor="nota_docente">Motivo de la Emergencia</Label>
             <Textarea
               id="nota_docente"
-              placeholder="Ej: El proyector del aula 4 no enciende. / Me encuentro demorado en ruta."
+              placeholder="Ej: No pude asistir debido a una urgencia médica / No aparezco como docente debido a un problema técnico."
               className="min-h-[140px] rounded-xl resize-none text-base border-destructive/30 focus-visible:ring-destructive focus-visible:border-transparent bg-background"
               {...form.register('nota_docente')}
             />

@@ -21,6 +21,7 @@ import { Badge } from '@/components/ui/badge';
 
 type ClaseHoy = {
   slot_id: number;
+  carreras_codigos: string;
   materia_nombre: string;
   hora_inicio: string;
   hora_fin: string;
@@ -43,6 +44,7 @@ type MateriaStats = {
   materia_id: number;
   materia_nombre: string;
   materia_anio: number;
+  carreras_codigos: string;
   dias_cursada: string[];
   asistencias: number;
   asincronicas: number;
@@ -51,16 +53,29 @@ type MateriaStats = {
 };
 
 const asincronicaSchema = z.object({
-  slot_horario_id: z.coerce.number().min(1, 'Debes seleccionar una clase.'),
+  slot_horario_id: z.coerce.number().min(1, 'Debés seleccionar una clase.'),
   fecha_dictado: z.string().min(1, 'La fecha es obligatoria.'),
   nota: z.string().min(5, 'Por favor provee un detalle mínimo de la clase.'),
+}).refine(data => {
+  const getOffsetDateStr = (offsetDays: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() + offsetDays);
+    return d.toISOString().split('T')[0];
+  };
+  const min = getOffsetDateStr(-7);
+  const max = getOffsetDateStr(7);
+  return data.fecha_dictado >= min && data.fecha_dictado <= max;
+}, {
+  message: "La fecha debe estar entre 7 días en el pasado y 7 días en el futuro.",
+  path: ["fecha_dictado"]
 });
 
 type AsincronicaValues = z.infer<typeof asincronicaSchema>;
 
 const emergenciaSchema = z.object({
   slot_horario_id: z.coerce.number().optional().or(z.literal(0)),
-  nota_docente: z.string().min(10, 'Por favor explica detalladamente el problema o incidencia.'),
+  nota_docente: z.string().min(10, 'Por favor explicá detalladamente el problema o incidencia.'),
+  fecha: z.string().min(1, 'La fecha es obligatoria.'),
 });
 
 type EmergenciaValues = z.infer<typeof emergenciaSchema>;
@@ -73,6 +88,22 @@ export function DocenteDashboardPage() {
   const [isAsincronicaOpen, setIsAsincronicaOpen] = React.useState(false);
   const [isEmergenciaOpen, setIsEmergenciaOpen] = React.useState(false);
   const [selectedMateriaStats, setSelectedMateriaStats] = React.useState<MateriaStats | null>(null);
+
+  const minDateStr = React.useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    return d.toISOString().split('T')[0];
+  }, []);
+
+  const maxDateStr = React.useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 7);
+    return d.toISOString().split('T')[0];
+  }, []);
+
+  const todayStr = React.useMemo(() => {
+    return new Date().toISOString().split('T')[0];
+  }, []);
 
   // Queries
   const { data: estadoHoy, isLoading: isEstadoLoading } = useQuery({
@@ -92,9 +123,11 @@ export function DocenteDashboardPage() {
   });
 
   const { data: clasesHoy, isLoading: isClasesHoyLoading } = useQuery({
-    queryKey: ['asistencia', 'mis_clases_hoy'],
+    queryKey: ['asistencia', 'mis_clases_hoy', todayStr],
     queryFn: async () => {
-      const { data } = await api.get<ClaseHoy[]>('/asistencia/mis_clases_hoy');
+      const { data } = await api.get<ClaseHoy[]>('/asistencia/mis_clases_hoy', {
+        params: { fecha: todayStr }
+      });
       return data;
     },
   });
@@ -114,7 +147,32 @@ export function DocenteDashboardPage() {
     defaultValues: {
       slot_horario_id: 0,
       nota_docente: '',
+      fecha: new Date().toISOString().split('T')[0],
     },
+  });
+
+  const watchAsyncFecha = asincronicaForm.watch('fecha_dictado') || new Date().toISOString().split('T')[0];
+  const { data: clasesAsyncFecha, isLoading: isClasesAsyncLoading } = useQuery({
+    queryKey: ['asistencia', 'mis_clases_hoy', watchAsyncFecha],
+    queryFn: async () => {
+      const { data } = await api.get<ClaseHoy[]>('/asistencia/mis_clases_hoy', {
+        params: { fecha: watchAsyncFecha }
+      });
+      return data;
+    },
+    enabled: isAsincronicaOpen,
+  });
+
+  const watchEmergFecha = emergenciaForm.watch('fecha') || new Date().toISOString().split('T')[0];
+  const { data: clasesEmergFecha, isLoading: isClasesEmergLoading } = useQuery({
+    queryKey: ['asistencia', 'mis_clases_hoy', watchEmergFecha],
+    queryFn: async () => {
+      const { data } = await api.get<ClaseHoy[]>('/asistencia/mis_clases_hoy', {
+        params: { fecha: watchEmergFecha }
+      });
+      return data;
+    },
+    enabled: isEmergenciaOpen,
   });
 
   // Mutations
@@ -177,7 +235,7 @@ export function DocenteDashboardPage() {
 
       {/* 2. Banner de Estado y Acciones */}
       <section className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-        
+
         {/* Card Estado de Hoy */}
         <Card className="relative overflow-hidden border-border bg-card shadow-md transition-all hover:shadow-lg">
           <CardHeader className="space-y-2">
@@ -185,7 +243,7 @@ export function DocenteDashboardPage() {
               <GraduationCap className="h-4 w-4 text-primary" />
               Estado de Fichaje Actual
             </div>
-            
+
             {isEstadoLoading ? (
               <div className="space-y-2">
                 <Skeleton className="h-8 w-1/2" />
@@ -201,7 +259,7 @@ export function DocenteDashboardPage() {
                   Clase en curso
                 </CardTitle>
                 <p className="text-muted-foreground mt-1">
-                  Dictando <span className="font-bold text-foreground">{estadoHoy.materia_actual}</span>. 
+                  Dictando <span className="font-bold text-foreground">{estadoHoy.materia_actual}</span>.
                   Ingreso registrado a las <span className="font-bold text-foreground">{estadoHoy.hora_entrada}hs</span>.
                 </p>
               </div>
@@ -211,7 +269,7 @@ export function DocenteDashboardPage() {
                   <span className="relative flex h-3 w-3">
                     <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
                   </span>
-                  Listo para ingresar
+                  Listo para ingresar (Presencial o Virtual Síncrona).
                 </CardTitle>
                 <p className="text-muted-foreground mt-1">
                   No tenés entradas activas actualmente. Podés registrar tu entrada al llegar al aula.
@@ -224,11 +282,10 @@ export function DocenteDashboardPage() {
               <Skeleton className="h-12 w-full rounded-xl" />
             ) : (
               <Button
-                className={`h-12 w-full justify-between px-5 text-base font-medium shadow-md transition-all ${
-                  estadoHoy?.tiene_entrada_activa
-                    ? 'bg-red-600 hover:bg-red-700 text-white shadow-red-600/10'
-                    : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/10'
-                }`}
+                className={`h-12 w-full justify-between px-5 text-base font-medium shadow-md transition-all ${estadoHoy?.tiene_entrada_activa
+                  ? 'bg-red-600 hover:bg-red-700 text-white shadow-red-600/10'
+                  : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/10'
+                  }`}
                 onClick={() => navigate('/chequeo')}
               >
                 <span className="flex items-center gap-3">
@@ -248,8 +305,8 @@ export function DocenteDashboardPage() {
             <CardDescription>Firmá clases asincrónicas o reportá incidencias sin moverte de aquí.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               className="justify-between bg-card hover:bg-muted"
               onClick={() => setIsAsincronicaOpen(true)}
             >
@@ -259,8 +316,8 @@ export function DocenteDashboardPage() {
               </span>
               <ArrowRight className="h-4 w-4" />
             </Button>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               className="justify-between bg-card hover:bg-muted"
               onClick={() => setIsEmergenciaOpen(true)}
             >
@@ -277,7 +334,7 @@ export function DocenteDashboardPage() {
       {/* 3. Sección de Clases de Hoy */}
       <section className="space-y-4">
         <div>
-          <h2 className="text-xl font-bold tracking-tight text-foreground">Tu agenda para hoy</h2>
+          <h2 className="text-xl font-bold tracking-tight text-foreground">Mi agenda para hoy</h2>
           <p className="text-sm text-muted-foreground">Clases programadas para el día de la fecha.</p>
         </div>
 
@@ -300,9 +357,14 @@ export function DocenteDashboardPage() {
             {clasesHoy.map((clase) => (
               <Card key={clase.slot_id} className="border-border bg-card shadow-sm transition-all hover:shadow-md">
                 <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
-                  <CardTitle className="text-base font-bold text-foreground truncate max-w-[80%]">
-                    {clase.materia_nombre}
-                  </CardTitle>
+                  <div className="flex min-w-0 max-w-[80%] items-start gap-2">
+                    <CardTitle className="min-w-0 truncate text-base font-bold text-foreground">
+                      {clase.materia_nombre}
+                    </CardTitle>
+                    <span className="shrink-0 rounded-md bg-muted px-2 py-0.5 font-mono text-[11px] font-semibold tracking-wide text-muted-foreground">
+                      {clase.carreras_codigos || 'Sin carrera'}
+                    </span>
+                  </div>
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
                     <CalendarRange className="h-4 w-4" />
                   </div>
@@ -320,7 +382,7 @@ export function DocenteDashboardPage() {
           <Card className="border-dashed border-2 border-border bg-card/50 shadow-none">
             <CardHeader className="text-center py-6">
               <CardTitle className="text-lg font-medium text-muted-foreground">No tenés clases asignadas hoy</CardTitle>
-              <CardDescription>Si necesitas registrar un movimiento fuera de cronograma, acércate a Preceptoría.</CardDescription>
+              <CardDescription>Si necesitás registrar un movimiento fuera de cronograma, acercate a Preceptoría.</CardDescription>
             </CardHeader>
           </Card>
         )}
@@ -330,7 +392,7 @@ export function DocenteDashboardPage() {
       <section className="space-y-4">
         <div>
           <h2 className="text-xl font-bold tracking-tight text-foreground">Mis Materias Asignadas</h2>
-          <p className="text-sm text-muted-foreground">Consulta las materias que tienes a cargo, sus días de cursada y el historial acumulado.</p>
+          <p className="text-sm text-muted-foreground">Consultá las materias que tenés a cargo, sus días de cursada y el historial acumulado.</p>
         </div>
 
         {isStatsLoading ? (
@@ -355,12 +417,17 @@ export function DocenteDashboardPage() {
                 <CardHeader className="pb-3">
                   <div className="flex justify-between items-start">
                     <div>
-                      <CardTitle className="text-lg font-bold text-foreground">{stats.materia_nombre}</CardTitle>
+                      <div className="flex items-center gap-2">
+                        <CardTitle className="text-lg font-bold text-foreground">{stats.materia_nombre}</CardTitle>
+                        <span className="shrink-0 rounded-md bg-muted px-2 py-0.5 font-mono text-[11px] font-semibold tracking-wide text-muted-foreground">
+                          {stats.carreras_codigos || 'Sin carrera'}
+                        </span>
+                      </div>
                       <CardDescription className="text-xs mt-0.5">Año: {stats.materia_anio}° Año</CardDescription>
                     </div>
                     <Badge variant="outline" className="border-primary/20 text-primary">Asignado</Badge>
                   </div>
-                  
+
                   {/* Días de cursada */}
                   <div className="mt-3 flex flex-wrap gap-1.5">
                     {stats.dias_cursada.map((dia, idx) => (
@@ -370,7 +437,7 @@ export function DocenteDashboardPage() {
                     ))}
                   </div>
                 </CardHeader>
-                
+
                 <CardContent className="space-y-4 pt-0">
                   {/* Fila de contadores */}
                   <div className="grid grid-cols-3 gap-2 bg-muted/30 rounded-xl p-3 text-center border border-border/50">
@@ -389,8 +456,8 @@ export function DocenteDashboardPage() {
                   </div>
 
                   {/* Botón Ver Historial */}
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     className="w-full h-10 gap-2 border-border/80 hover:bg-muted"
                     onClick={() => setSelectedMateriaStats(stats)}
                   >
@@ -438,8 +505,8 @@ export function DocenteDashboardPage() {
                   else if (hist.estado === "Ausente") badgeVariant = "destructive";
 
                   return (
-                    <div 
-                      key={idx} 
+                    <div
+                      key={idx}
                       className="flex flex-col gap-2 rounded-xl border border-border p-4 bg-muted/20 hover:bg-muted/40 transition-colors"
                     >
                       <div className="flex items-center justify-between gap-3">
@@ -450,7 +517,7 @@ export function DocenteDashboardPage() {
                           {hist.estado}
                         </Badge>
                       </div>
-                      
+
                       <div className="text-xs text-muted-foreground flex justify-between items-center mt-1">
                         <span>Modalidad: <strong className="text-foreground">{hist.tipo}</strong></span>
                         <span className="italic">{hist.detalle}</span>
@@ -483,17 +550,17 @@ export function DocenteDashboardPage() {
             </DialogDescription>
           </DialogHeader>
 
-          <form 
-            onSubmit={asincronicaForm.handleSubmit((vals) => asincronicaMutation.mutate(vals))} 
+          <form
+            onSubmit={asincronicaForm.handleSubmit((vals) => asincronicaMutation.mutate(vals))}
             className="space-y-4 pt-4"
           >
             <div className="space-y-1.5">
-              <Label className="text-sm font-semibold" htmlFor="async_slot_horario_id">Clase de Hoy</Label>
-              {isClasesHoyLoading ? (
+              <Label className="text-sm font-semibold" htmlFor="async_slot_horario_id">Clase del Día</Label>
+              {isClasesAsyncLoading ? (
                 <Skeleton className="h-10 w-full rounded-lg" />
-              ) : !clasesHoy || clasesHoy.length === 0 ? (
+              ) : !clasesAsyncFecha || clasesAsyncFecha.length === 0 ? (
                 <div className="rounded-lg border border-dashed p-3 text-center text-xs text-muted-foreground bg-muted/30">
-                  No tenés clases programadas para hoy.
+                  No tenés clases programadas para la fecha seleccionada.
                 </div>
               ) : (
                 <Select
@@ -504,9 +571,9 @@ export function DocenteDashboardPage() {
                     <SelectValue placeholder="Seleccioná la materia..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {clasesHoy.map((clase) => (
+                    {clasesAsyncFecha.map((clase) => (
                       <SelectItem key={clase.slot_id} value={clase.slot_id.toString()}>
-                        {clase.materia_nombre} ({clase.hora_inicio} - {clase.hora_fin})
+                        {clase.materia_nombre} {clase.carreras_codigos ? `(${clase.carreras_codigos})` : '(Sin carrera)'} ({clase.hora_inicio} - {clase.hora_fin})
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -522,6 +589,8 @@ export function DocenteDashboardPage() {
               <Input
                 id="async_fecha_dictado"
                 type="date"
+                min={minDateStr}
+                max={maxDateStr}
                 className="h-10 rounded-lg text-sm bg-background"
                 {...asincronicaForm.register('fecha_dictado')}
               />
@@ -544,9 +613,9 @@ export function DocenteDashboardPage() {
             </div>
 
             <DialogFooter className="pt-2 border-t flex flex-col gap-2 sm:flex-row">
-              <Button 
-                type="button" 
-                variant="outline" 
+              <Button
+                type="button"
+                variant="outline"
                 onClick={() => { setIsAsincronicaOpen(false); asincronicaForm.reset(); }}
                 className="w-full sm:w-1/2 rounded-lg"
               >
@@ -555,7 +624,7 @@ export function DocenteDashboardPage() {
               <Button
                 type="submit"
                 className="w-full sm:w-1/2 rounded-lg gap-1"
-                disabled={asincronicaMutation.isPending || (!clasesHoy?.length && !isClasesHoyLoading)}
+                disabled={asincronicaMutation.isPending || (!clasesAsyncFecha?.length && !isClasesAsyncLoading)}
               >
                 {asincronicaMutation.isPending ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -584,13 +653,26 @@ export function DocenteDashboardPage() {
             </DialogDescription>
           </DialogHeader>
 
-          <form 
-            onSubmit={emergenciaForm.handleSubmit((vals) => emergenciaMutation.mutate(vals))} 
+          <form
+            onSubmit={emergenciaForm.handleSubmit((vals) => emergenciaMutation.mutate(vals))}
             className="space-y-4 pt-4"
           >
             <div className="space-y-1.5">
+              <Label className="text-sm font-semibold" htmlFor="emergencia_fecha">Fecha de la Ausencia / Incidencia</Label>
+              <Input
+                id="emergencia_fecha"
+                type="date"
+                className="h-10 rounded-lg text-sm bg-background"
+                {...emergenciaForm.register('fecha')}
+              />
+              {emergenciaForm.formState.errors.fecha && (
+                <p className="text-xs text-destructive">{emergenciaForm.formState.errors.fecha.message}</p>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
               <Label className="text-sm font-semibold" htmlFor="emergencia_slot_horario_id">Clase Afectada (Opcional)</Label>
-              {isClasesHoyLoading ? (
+              {isClasesEmergLoading ? (
                 <Skeleton className="h-10 w-full rounded-lg" />
               ) : (
                 <Select
@@ -602,22 +684,22 @@ export function DocenteDashboardPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="0">Toda la jornada / General</SelectItem>
-                    {clasesHoy?.map((clase) => (
+                    {clasesEmergFecha?.map((clase) => (
                       <SelectItem key={clase.slot_id} value={clase.slot_id.toString()}>
-                        {clase.materia_nombre} ({clase.hora_inicio} - {clase.hora_fin})
+                        {clase.materia_nombre} {clase.carreras_codigos ? `(${clase.carreras_codigos})` : '(Sin carrera)'} ({clase.hora_inicio} - {clase.hora_fin})
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               )}
-              <p className="text-[10px] text-muted-foreground">Si el inconveniente es global, déjalo en General.</p>
+              <p className="text-[10px] text-muted-foreground">Si el inconveniente es global o abarca todo el día, déjalo en General.</p>
             </div>
 
             <div className="space-y-1.5">
               <Label className="text-sm font-semibold text-destructive" htmlFor="emergencia_nota_docente">Motivo / Explicación</Label>
               <Textarea
                 id="emergencia_nota_docente"
-                placeholder="Ej: Tengo una demora en la autopista por un accidente. / El proyector del Aula Magna no tiene señal."
+                placeholder="Ej: No pude asistir debido a una urgencia médica / No aparezco como docente debido a un problema técnico."
                 className="min-h-[110px] rounded-lg resize-none text-sm border-destructive/20 focus-visible:ring-destructive focus-visible:border-transparent bg-background"
                 {...emergenciaForm.register('nota_docente')}
               />
@@ -627,9 +709,9 @@ export function DocenteDashboardPage() {
             </div>
 
             <DialogFooter className="pt-2 border-t flex flex-col gap-2 sm:flex-row">
-              <Button 
-                type="button" 
-                variant="outline" 
+              <Button
+                type="button"
+                variant="outline"
                 onClick={() => { setIsEmergenciaOpen(false); emergenciaForm.reset(); }}
                 className="w-full sm:w-1/2 rounded-lg"
               >

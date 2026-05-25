@@ -1,3 +1,4 @@
+import * as React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
@@ -16,21 +17,46 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 type ClaseHoy = {
   slot_id: number;
+  carreras_codigos: string;
   materia_nombre: string;
   hora_inicio: string;
   hora_fin: string;
 };
 
 const asincronicaSchema = z.object({
-  slot_horario_id: z.coerce.number().min(1, 'Debes seleccionar una clase.'),
+  slot_horario_id: z.coerce.number().min(1, 'Debés seleccionar una clase.'),
   fecha_dictado: z.string().min(1, 'La fecha es obligatoria.'),
   nota: z.string().min(5, 'Por favor provee un detalle mínimo de la clase.'),
+}).refine(data => {
+  const getOffsetDateStr = (offsetDays: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() + offsetDays);
+    return d.toISOString().split('T')[0];
+  };
+  const min = getOffsetDateStr(-7);
+  const max = getOffsetDateStr(7);
+  return data.fecha_dictado >= min && data.fecha_dictado <= max;
+}, {
+  message: "La fecha debe estar entre 7 días en el pasado y 7 días en el futuro.",
+  path: ["fecha_dictado"]
 });
 
 type AsincronicaValues = z.infer<typeof asincronicaSchema>;
 
 export function DeclararAsincronicaPage() {
   const navigate = useNavigate();
+
+  const minDateStr = React.useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    return d.toISOString().split('T')[0];
+  }, []);
+
+  const maxDateStr = React.useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 7);
+    return d.toISOString().split('T')[0];
+  }, []);
 
   const form = useForm<AsincronicaValues>({
     resolver: zodResolver(asincronicaSchema) as any,
@@ -41,10 +67,14 @@ export function DeclararAsincronicaPage() {
     },
   });
 
+  const watchFecha = form.watch('fecha_dictado') || new Date().toISOString().split('T')[0];
+
   const { data: clasesHoy, isLoading } = useQuery({
-    queryKey: ['asistencia', 'mis_clases_hoy'],
+    queryKey: ['asistencia', 'mis_clases_hoy', watchFecha],
     queryFn: async () => {
-      const { data } = await api.get<ClaseHoy[]>('/asistencia/mis_clases_hoy');
+      const { data } = await api.get<ClaseHoy[]>('/asistencia/mis_clases_hoy', {
+        params: { fecha: watchFecha }
+      });
       return data;
     },
   });
@@ -79,25 +109,25 @@ export function DeclararAsincronicaPage() {
       <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
         <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-6">
           <div className="space-y-3">
-            <Label className="text-base" htmlFor="slot_horario_id">Clase de Hoy</Label>
+            <Label className="text-base" htmlFor="slot_horario_id">Clase del Día</Label>
             {isLoading ? (
               <Skeleton className="h-12 w-full rounded-xl" />
             ) : !clasesHoy || clasesHoy.length === 0 ? (
               <div className="rounded-xl border border-dashed border-border bg-muted/50 p-4 text-center text-sm text-muted-foreground">
-                No tenés clases sincronizadas para hoy.
+                No tenés clases programadas para la fecha seleccionada.
               </div>
             ) : (
               <Select
-                value={form.watch('slot_horario_id').toString()}
+                value={form.watch('slot_horario_id') ? form.watch('slot_horario_id').toString() : ''}
                 onValueChange={(val) => form.setValue('slot_horario_id', Number(val))}
               >
-                <SelectTrigger className="h-12 rounded-xl text-base">
+                <SelectTrigger className="h-10 rounded-lg text-sm bg-background">
                   <SelectValue placeholder="Seleccioná la materia..." />
                 </SelectTrigger>
                 <SelectContent>
                   {clasesHoy.map((clase) => (
                     <SelectItem key={clase.slot_id} value={clase.slot_id.toString()}>
-                      {clase.materia_nombre} ({clase.hora_inicio} - {clase.hora_fin})
+                      {clase.materia_nombre} {clase.carreras_codigos ? `(${clase.carreras_codigos})` : '(Sin carrera)'} ({clase.hora_inicio} - {clase.hora_fin})
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -113,6 +143,8 @@ export function DeclararAsincronicaPage() {
             <Input
               id="fecha_dictado"
               type="date"
+              min={minDateStr}
+              max={maxDateStr}
               className="h-12 rounded-xl text-base"
               {...form.register('fecha_dictado')}
             />

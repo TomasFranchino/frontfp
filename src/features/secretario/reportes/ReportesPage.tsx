@@ -194,7 +194,7 @@ export function ReportesPage() {
             </Select>
           </div>
 
-          <Button onClick={handleDownload} disabled={isDownloading || !mes || !anio} className="gap-2 bg-primary text-primary-foreground">
+          <Button onClick={handleDownload} disabled={isDownloading || !mes || !anio} className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-primary-foreground">
             <Download className="h-4 w-4" />
             {isDownloading ? 'Descargando...' : 'Descargar Excel'}
           </Button>
@@ -277,7 +277,7 @@ export function ReportesPage() {
                     // Formatear fecha para el usuario
                     const [year, month, day] = falta.fecha.split('-');
                     const dateFormatted = `${day}/${month}/${year}`;
-                    
+
                     return (
                       <TableRow key={`${falta.fecha}-${falta.materia_nombre}-${index}`}>
                         <TableCell className="font-medium text-primary">{dateFormatted}</TableCell>

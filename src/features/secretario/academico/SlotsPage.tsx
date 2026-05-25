@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 
 import api from '@/lib/api';
@@ -13,7 +13,6 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 type Materia = {
   id: number;
@@ -21,6 +20,11 @@ type Materia = {
   nombre: string;
   anio: number;
   activa: boolean;
+  carreras?: {
+    id: number;
+    codigo: string;
+    nombre: string;
+  }[];
 };
 
 type SlotHorario = {
@@ -73,12 +77,22 @@ async function fetchSlots(): Promise<SlotHorario[]> {
 }
 
 async function fetchMaterias(): Promise<Materia[]> {
-  const { data } = await api.get<Materia[]>('/academico/materias');
+  const { data } = await api.get<Materia[]>('/academico/materias?incluir_inactivas=true');
   return data;
 }
 
 async function createSlot(payload: SlotFormValues): Promise<SlotHorario> {
   const { data } = await api.post<SlotHorario>('/academico/slots', {
+    materia_id: payload.materia_id,
+    dia_semana: payload.dia_semana,
+    hora_inicio: payload.hora_inicio,
+    hora_fin: payload.hora_fin,
+  });
+  return data;
+}
+
+async function updateSlot({ id, payload }: { id: number; payload: SlotFormValues }): Promise<SlotHorario> {
+  const { data } = await api.put<SlotHorario>(`/academico/slots/${id}`, {
     materia_id: payload.materia_id,
     dia_semana: payload.dia_semana,
     hora_inicio: payload.hora_inicio,
@@ -95,9 +109,19 @@ function getDiaSemanaLabel(diaSemana: number) {
   return DIAS_SEMANA.find((dia) => dia.value === diaSemana)?.label ?? `Día ${diaSemana}`;
 }
 
+function getMateriaLabel(materia?: Materia | null) {
+  if (!materia) {
+    return 'Materia no encontrada';
+  }
+
+  const carrerasCodigo = materia.carreras?.map((carrera) => carrera.codigo).join(', ');
+  return carrerasCodigo ? `${materia.nombre} (${carrerasCodigo})` : materia.nombre;
+}
+
 export default function SlotsPage() {
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingSlot, setEditingSlot] = useState<SlotHorario | null>(null);
 
   const {
     data: slots,
@@ -117,6 +141,41 @@ export default function SlotsPage() {
     () => new Map((materias ?? []).map((materia) => [materia.id, materia])),
     [materias],
   );
+
+  const groupedSlots = useMemo(() => {
+    if (!slots || !materias) return [];
+
+    const groupsMap = new Map<number, SlotHorario[]>();
+    for (const slot of slots) {
+      if (!groupsMap.has(slot.materia_id)) {
+        groupsMap.set(slot.materia_id, []);
+      }
+      groupsMap.get(slot.materia_id)!.push(slot);
+    }
+
+    const list = Array.from(groupsMap.entries()).map(([materiaId, slotsList]) => {
+      const materia = materiasById.get(materiaId);
+
+      const sortedSlots = [...slotsList].sort((a, b) => {
+        if (a.dia_semana !== b.dia_semana) {
+          return a.dia_semana - b.dia_semana;
+        }
+        return a.hora_inicio.localeCompare(b.hora_inicio);
+      });
+
+      return {
+        materiaId,
+        materia,
+        slots: sortedSlots,
+      };
+    });
+
+    return list.sort((a, b) => {
+      const nameA = a.materia?.nombre ?? '';
+      const nameB = b.materia?.nombre ?? '';
+      return nameA.localeCompare(nameB);
+    });
+  }, [slots, materias, materiasById]);
 
   const form = useForm<SlotFormValues>({
     resolver: zodResolver(slotSchema) as any,
@@ -143,6 +202,22 @@ export default function SlotsPage() {
     },
   });
 
+  const updateMutation = useMutation({
+    mutationFn: updateSlot,
+    onSuccess: () => {
+      toast.success('Horario actualizado correctamente.');
+      queryClient.invalidateQueries({ queryKey: ['academico', 'slots'] });
+      setIsDialogOpen(false);
+      setEditingSlot(null);
+      form.reset({
+        materia_id: 0,
+        dia_semana: 0,
+        hora_inicio: '08:00',
+        hora_fin: '10:00',
+      });
+    },
+  });
+
   const deleteMutation = useMutation({
     mutationFn: deleteSlot,
     onSuccess: () => {
@@ -154,6 +229,7 @@ export default function SlotsPage() {
   const isLoading = isLoadingSlots || isLoadingMaterias;
 
   const handleOpenDialog = () => {
+    setEditingSlot(null);
     form.reset({
       materia_id: 0,
       dia_semana: 0,
@@ -163,8 +239,41 @@ export default function SlotsPage() {
     setIsDialogOpen(true);
   };
 
+  const handleAddSlotForMateria = (materiaId: number) => {
+    setEditingSlot(null);
+    form.reset({
+      materia_id: materiaId,
+      dia_semana: 0,
+      hora_inicio: '08:00',
+      hora_fin: '10:00',
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handleEditSlot = (slot: SlotHorario) => {
+    setEditingSlot(slot);
+    form.reset({
+      materia_id: slot.materia_id,
+      dia_semana: slot.dia_semana,
+      hora_inicio: formatTime(slot.hora_inicio),
+      hora_fin: formatTime(slot.hora_fin),
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handleOpenChange = (open: boolean) => {
+    setIsDialogOpen(open);
+    if (!open) {
+      setEditingSlot(null);
+    }
+  };
+
   const onSubmit = (values: SlotFormValues) => {
-    createMutation.mutate(values);
+    if (editingSlot) {
+      updateMutation.mutate({ id: editingSlot.id, payload: values });
+    } else {
+      createMutation.mutate(values);
+    }
   };
 
   return (
@@ -182,77 +291,122 @@ export default function SlotsPage() {
         </Button>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+      <div>
         {isLoading ? (
-          <div className="space-y-4 p-6">
+          <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm space-y-4 p-6">
             <Skeleton className="h-8 w-full" />
             <Skeleton className="h-8 w-full" />
             <Skeleton className="h-8 w-full" />
           </div>
         ) : isSlotsError ? (
-          <div className="p-6 text-center text-destructive">Ocurrió un error al cargar los horarios.</div>
+          <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm p-6 text-center text-destructive">
+            Ocurrió un error al cargar los horarios.
+          </div>
         ) : !slots || slots.length === 0 ? (
-          <div className="p-10 text-center text-muted-foreground">
+          <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm p-10 text-center text-muted-foreground">
             No hay horarios registrados. Creá el primero con el botón superior.
           </div>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Materia</TableHead>
-                <TableHead>Día de la Semana</TableHead>
-                <TableHead>Hora Inicio</TableHead>
-                <TableHead>Hora Fin</TableHead>
-                <TableHead className="w-[100px]"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {slots.map((slot) => {
-                const materia = materiasById.get(slot.materia_id);
+          <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2">
+            {groupedSlots.map(({ materiaId, materia, slots: materiaSlots }) => (
+              <div
+                key={materiaId}
+                className="p-5 rounded-xl border border-border bg-card shadow-sm hover:shadow-md transition-all duration-200"
+              >
+                <div className="flex items-center justify-between mb-4 border-b border-border/40 pb-2">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-semibold text-base text-primary uppercase tracking-wide">
+                        {materia?.nombre ?? 'Materia no encontrada'}
+                      </h3>
+                      {materia && !materia.activa && (
+                        <span className="inline-flex items-center rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive ring-1 ring-inset ring-destructive/20">
+                          Inactiva
+                        </span>
+                      )}
+                    </div>
+                    {materia?.codigo_siu ? (
+                      <p className="text-xs text-muted-foreground font-mono">
+                        Código SIU: {materia.codigo_siu}
+                      </p>
+                    ) : null}
+                  </div>
+                  {materia && materia.activa && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:bg-accent hover:text-accent-foreground shrink-0"
+                      onClick={() => handleAddSlotForMateria(materia.id)}
+                      title="Añadir horario"
+                      aria-label="Añadir horario a esta materia"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
 
-                return (
-                  <TableRow key={slot.id}>
-                    <TableCell className="font-medium text-primary">
-                      <div className="space-y-0.5">
-                        <p>{materia?.nombre ?? 'Materia no encontrada'}</p>
-                        {materia?.codigo_siu ? (
-                          <p className="text-xs font-normal text-muted-foreground">{materia.codigo_siu}</p>
-                        ) : null}
-                      </div>
-                    </TableCell>
-                    <TableCell>{getDiaSemanaLabel(slot.dia_semana)}</TableCell>
-                    <TableCell>{formatTime(slot.hora_inicio)}</TableCell>
-                    <TableCell>{formatTime(slot.hora_fin)}</TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                        disabled={deleteMutation.isPending}
-                        onClick={() => {
-                          if (confirm('¿Eliminar este horario de la grilla?')) {
-                            deleteMutation.mutate(slot.id);
-                          }
-                        }}
-                        aria-label="Eliminar horario"
+                <div className="space-y-2 font-mono text-sm pl-2">
+                  {materiaSlots.map((slot, index) => {
+                    const isLast = index === materiaSlots.length - 1;
+                    const connector = isLast ? '└──' : '├──';
+
+                    return (
+                      <div
+                        key={slot.id}
+                        className="flex items-center justify-between py-1.5 hover:bg-accent/40 rounded px-2 transition-colors group"
                       >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+                        <div className="flex items-center gap-3 text-muted-foreground group-hover:text-primary transition-colors">
+                          <span className="text-muted-foreground/60 select-none">{connector}</span>
+                          <span className="font-semibold w-24 inline-block text-foreground">
+                            {getDiaSemanaLabel(slot.dia_semana)}
+                          </span>
+                          <span>
+                            {formatTime(slot.hora_inicio)} – {formatTime(slot.hora_fin)}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                            disabled={deleteMutation.isPending}
+                            onClick={() => handleEditSlot(slot)}
+                            aria-label="Editar horario"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            disabled={deleteMutation.isPending}
+                            onClick={() => {
+                              if (confirm('¿Eliminar este horario de la grilla?')) {
+                                deleteMutation.mutate(slot.id);
+                              }
+                            }}
+                            aria-label="Eliminar horario"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
         )}
       </div>
 
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      <Dialog open={isDialogOpen} onOpenChange={handleOpenChange}>
         <DialogContent className="sm:max-w-[480px]">
           <DialogHeader>
-            <DialogTitle>Nuevo Horario (Slot)</DialogTitle>
+            <DialogTitle>{editingSlot ? 'Editar Horario (Slot)' : 'Nuevo Horario (Slot)'}</DialogTitle>
             <DialogDescription>
-              Definí el bloque semanal teórico para una materia.
+              {editingSlot ? 'Modificá los datos del bloque semanal teórico.' : 'Definí el bloque semanal teórico para una materia.'}
             </DialogDescription>
           </DialogHeader>
 
@@ -268,10 +422,10 @@ export default function SlotsPage() {
                 </SelectTrigger>
                 <SelectContent>
                   {(materias ?? [])
-                    .filter((materia) => materia.activa)
+                    .filter((materia) => materia.activa || materia.id === form.watch('materia_id'))
                     .map((materia) => (
                       <SelectItem key={materia.id} value={String(materia.id)}>
-                        {materia.nombre} ({materia.anio}º)
+                        {getMateriaLabel(materia)} ({materia.anio}º){!materia.activa && ' (Inactiva)'}
                       </SelectItem>
                     ))}
                 </SelectContent>
@@ -332,8 +486,8 @@ export default function SlotsPage() {
               <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
                 Cancelar
               </Button>
-              <Button type="submit" disabled={createMutation.isPending}>
-                Crear Horario
+              <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
+                {editingSlot ? 'Guardar Cambios' : 'Crear Horario'}
               </Button>
             </div>
           </form>

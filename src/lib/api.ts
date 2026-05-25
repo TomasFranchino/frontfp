@@ -2,7 +2,7 @@ import axios from 'axios';
 import { toast } from 'sonner';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL ?? 'http://localhost:8000/api',
+  baseURL: import.meta.env.VITE_API_URL,
   withCredentials: true,
   xsrfCookieName: 'csrftoken',
   xsrfHeaderName: 'X-CSRFToken',
@@ -68,14 +68,23 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     const status = error?.response?.status;
-    const method = error?.config?.method?.toUpperCase();
     const url = error?.config?.url;
-    const message = error?.message ?? 'Unknown request error';
 
-    console.error('[API]', { status, method, url, message });
+    const isAuthEndpoint = typeof url === 'string' && url.startsWith('/auth/');
+
+    if (status === 401 && !isAuthEndpoint) {
+
+      if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+        window.location.replace('/login');
+      }
+
+      return Promise.reject(error);
+    }
 
     if (status >= 400 || !status) {
-      toast.error(getApiErrorMessage(error));
+      if (!error?.config?.headers?.['X-Skip-Toast']) {
+        toast.error(getApiErrorMessage(error));
+      }
     }
 
     return Promise.reject(error);

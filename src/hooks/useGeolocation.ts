@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 export type GeoLocation = {
   lat: number;
@@ -10,7 +10,7 @@ export function useGeolocation() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  useEffect(() => {
+  const fetchLocation = useCallback(() => {
     if (!navigator.geolocation) {
       setError('La geolocalización no está soportada por tu navegador.');
       setIsLoading(false);
@@ -18,6 +18,7 @@ export function useGeolocation() {
     }
 
     setIsLoading(true);
+    setError(null);
     navigator.geolocation.getCurrentPosition(
       (position) => {
         setLocation({
@@ -29,7 +30,7 @@ export function useGeolocation() {
       (err) => {
         switch (err.code) {
           case err.PERMISSION_DENIED:
-            setError('Permiso denegado. Debes habilitar la ubicación para registrar tu asistencia.');
+            setError('Permiso denegado. Debés habilitar la ubicación para registrar tu asistencia.');
             break;
           case err.POSITION_UNAVAILABLE:
             setError('La información de tu ubicación no está disponible en este momento.');
@@ -44,12 +45,16 @@ export function useGeolocation() {
         setIsLoading(false);
       },
       {
-        enableHighAccuracy: true, // Importante para la precisión del GPS
+        enableHighAccuracy: true,
         timeout: 15000,
-        maximumAge: 0, // No queremos posiciones oxidadas en caché
+        maximumAge: 0,
       }
     );
   }, []);
 
-  return { location, error, isLoading };
+  useEffect(() => {
+    fetchLocation();
+  }, [fetchLocation]);
+
+  return { location, error, isLoading, refetch: fetchLocation };
 }

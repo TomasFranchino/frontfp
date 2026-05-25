@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { FileSpreadsheet, UploadCloud } from 'lucide-react';
+import { Download, FileSpreadsheet, UploadCloud } from 'lucide-react';
 import { toast } from 'sonner';
 
+import plantillaImportacionUrl from '@/assets/SIU_Plantilla_Importacion.xlsx?url';
 import api from '@/lib/api';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -81,9 +82,19 @@ export function ImportacionPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-semibold text-primary">Importación SIU</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Cargá un archivo Excel exportado desde SIU para crear datos académicos en lote.</p>
+      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div>
+          <h1 className="text-3xl font-semibold text-primary">Importación SIU</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Cargá un archivo Excel exportado desde SIU para crear datos académicos en lote.</p>
+        </div>
+
+        <Button asChild className="gap-2 bg-emerald-600 text-white hover:bg-emerald-700 self-start md:self-auto">
+          <a href={plantillaImportacionUrl} download="SIU_Plantilla_Importacion.xlsx">
+            <FileSpreadsheet className="h-4 w-4" />
+            <span>Descargar plantilla Excel</span>
+            <Download className="h-4 w-4" />
+          </a>
+        </Button>
       </div>
 
       <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
