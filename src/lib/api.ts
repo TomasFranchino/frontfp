@@ -82,6 +82,33 @@ export function invalidateCsrfToken(): void {
   cachedCsrfToken = null;
 }
 
+/**
+ * Precarga el CSRF token desde el endpoint del backend.
+ * 
+ * DEBE llamarse inmediatamente después del login exitoso y cuando la app
+ * detecta una sesión existente (GET /auth/me retorna usuario).
+ * 
+ * Esto asegura que:
+ * 1. El token se cachea en memoria para inyectarlo en el header X-CSRFToken.
+ * 2. La cookie `csrftoken` se establece en el navegador (vía Set-Cookie del
+ *    response), de modo que estará disponible para cuando Django la compare
+ *    con el header en la próxima petición POST.
+ * 
+ * Sin esta precarga, la primera petición POST falla con 403 porque el
+ * navegador no ha procesado aún el Set-Cookie de la fetch concurrent.
+ */
+export async function prefetchCsrfToken(): Promise<void> {
+  try {
+    const { data } = await axios.get<{ csrftoken: string }>(
+      `${import.meta.env.VITE_API_URL}/csrf/token`,
+      { withCredentials: true }
+    );
+    cachedCsrfToken = data.csrftoken;
+  } catch {
+    // Silenciar — se reintentará en el interceptor cuando sea necesario
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Error Formatting
 // ---------------------------------------------------------------------------

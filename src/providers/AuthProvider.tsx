@@ -2,7 +2,7 @@ import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AxiosError } from 'axios';
 
-import api from '@/lib/api';
+import api, { prefetchCsrfToken, invalidateCsrfToken } from '@/lib/api';
 
 export type AuthRole = 'docente' | 'secretario';
 
@@ -37,6 +37,10 @@ async function fetchCurrentUser(): Promise<AuthUser | null> {
     const { data } = await api.get<AuthUser>(`/auth/me?t=${Date.now()}`, {
       headers: { 'X-Skip-Toast': '1' },
     });
+
+    // Si hay sesión activa, precargamos el CSRF token para que la cookie
+    // esté lista antes de cualquier POST/PUT/PATCH/DELETE.
+    await prefetchCsrfToken();
 
     return data;
   } catch (error) {
@@ -75,6 +79,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loginMutation = useMutation({
     mutationFn: loginRequest,
     onSuccess: async () => {
+      // Precargamos el CSRF token ANTES de invalidar queries,
+      // así la cookie estará lista para cualquier POST que se dispare después.
+      await prefetchCsrfToken();
       await queryClient.invalidateQueries({ queryKey: authMeQueryKey });
     },
   });
@@ -82,6 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logoutMutation = useMutation({
     mutationFn: logoutRequest,
     onSuccess: async () => {
+      invalidateCsrfToken();
       await queryClient.invalidateQueries({ queryKey: authMeQueryKey });
     },
   });
