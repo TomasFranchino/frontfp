@@ -7,6 +7,7 @@ import { Plus, UserMinus, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 
 import api from '@/lib/api';
+import { getLocalDateString } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -186,7 +187,7 @@ export function AsignacionesPage() {
       docente_id: 0,
       materia_id: 0,
       rol: 'titular',
-      fecha_inicio: new Date().toISOString().slice(0, 10),
+      fecha_inicio: getLocalDateString(),
       fecha_fin: '',
     },
   });
@@ -201,7 +202,7 @@ export function AsignacionesPage() {
         docente_id: 0,
         materia_id: 0,
         rol: 'titular',
-        fecha_inicio: new Date().toISOString().slice(0, 10),
+        fecha_inicio: getLocalDateString(),
         fecha_fin: '',
       });
     },
@@ -218,7 +219,7 @@ export function AsignacionesPage() {
         docente_id: 0,
         materia_id: 0,
         rol: 'titular',
-        fecha_inicio: new Date().toISOString().slice(0, 10),
+        fecha_inicio: getLocalDateString(),
         fecha_fin: '',
       });
     },
@@ -240,7 +241,7 @@ export function AsignacionesPage() {
       docente_id: 0,
       materia_id: 0,
       rol: 'titular',
-      fecha_inicio: new Date().toISOString().slice(0, 10),
+      fecha_inicio: getLocalDateString(),
       fecha_fin: '',
     });
     setIsDialogOpen(true);
@@ -252,7 +253,7 @@ export function AsignacionesPage() {
       docente_id: docenteId,
       materia_id: 0,
       rol: 'titular',
-      fecha_inicio: new Date().toISOString().slice(0, 10),
+      fecha_inicio: getLocalDateString(),
       fecha_fin: '',
     });
     setIsDialogOpen(true);
@@ -425,7 +426,7 @@ export function AsignacionesPage() {
       </div>
 
       <Dialog open={isDialogOpen} onOpenChange={handleOpenChange}>
-        <DialogContent className="sm:max-w-[520px]">
+        <DialogContent className="grid-cols-1 sm:max-w-[520px]">
           <DialogHeader>
             <DialogTitle>{editingAsignacion ? 'Editar Asignación' : 'Nueva Asignación'}</DialogTitle>
             <DialogDescription>
@@ -435,7 +436,7 @@ export function AsignacionesPage() {
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-4 py-4">
+          <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-4 py-4 px-4">{/* P-4 */}
             <div className="space-y-2">
               <Label>Docente</Label>
               <Select

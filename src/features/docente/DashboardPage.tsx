@@ -8,6 +8,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 
 import api from '@/lib/api';
+import { getLocalDateString } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -60,7 +61,7 @@ const asincronicaSchema = z.object({
   const getOffsetDateStr = (offsetDays: number) => {
     const d = new Date();
     d.setDate(d.getDate() + offsetDays);
-    return d.toISOString().split('T')[0];
+    return getLocalDateString(d);
   };
   const min = getOffsetDateStr(-7);
   const max = getOffsetDateStr(7);
@@ -92,17 +93,17 @@ export function DocenteDashboardPage() {
   const minDateStr = React.useMemo(() => {
     const d = new Date();
     d.setDate(d.getDate() - 7);
-    return d.toISOString().split('T')[0];
+    return getLocalDateString(d);
   }, []);
 
   const maxDateStr = React.useMemo(() => {
     const d = new Date();
     d.setDate(d.getDate() + 7);
-    return d.toISOString().split('T')[0];
+    return getLocalDateString(d);
   }, []);
 
   const todayStr = React.useMemo(() => {
-    return new Date().toISOString().split('T')[0];
+    return getLocalDateString();
   }, []);
 
   // Queries
@@ -137,7 +138,7 @@ export function DocenteDashboardPage() {
     resolver: zodResolver(asincronicaSchema) as any,
     defaultValues: {
       slot_horario_id: 0,
-      fecha_dictado: new Date().toISOString().split('T')[0],
+      fecha_dictado: getLocalDateString(),
       nota: '',
     },
   });
@@ -147,11 +148,11 @@ export function DocenteDashboardPage() {
     defaultValues: {
       slot_horario_id: 0,
       nota_docente: '',
-      fecha: new Date().toISOString().split('T')[0],
+      fecha: getLocalDateString(),
     },
   });
 
-  const watchAsyncFecha = asincronicaForm.watch('fecha_dictado') || new Date().toISOString().split('T')[0];
+  const watchAsyncFecha = asincronicaForm.watch('fecha_dictado') || getLocalDateString();
   const { data: clasesAsyncFecha, isLoading: isClasesAsyncLoading } = useQuery({
     queryKey: ['asistencia', 'mis_clases_hoy', watchAsyncFecha],
     queryFn: async () => {
@@ -163,7 +164,7 @@ export function DocenteDashboardPage() {
     enabled: isAsincronicaOpen,
   });
 
-  const watchEmergFecha = emergenciaForm.watch('fecha') || new Date().toISOString().split('T')[0];
+  const watchEmergFecha = emergenciaForm.watch('fecha') || getLocalDateString();
   const { data: clasesEmergFecha, isLoading: isClasesEmergLoading } = useQuery({
     queryKey: ['asistencia', 'mis_clases_hoy', watchEmergFecha],
     queryFn: async () => {
@@ -567,7 +568,7 @@ export function DocenteDashboardPage() {
                   value={selectedValue ? selectedValue.toString() : ''}
                   onValueChange={(val) => asincronicaForm.setValue('slot_horario_id', Number(val), { shouldValidate: true })}
                 >
-                  <SelectTrigger id="async_slot_horario_id" className="h-10 rounded-lg text-sm bg-background">
+                  <SelectTrigger id="async_slot_horario_id" className="h-10 w-full rounded-lg text-sm bg-background">
                     <SelectValue placeholder="Seleccioná la materia..." />
                   </SelectTrigger>
                   <SelectContent>
@@ -679,7 +680,7 @@ export function DocenteDashboardPage() {
                   value={selectedEmergSlot ? selectedEmergSlot.toString() : '0'}
                   onValueChange={(val) => emergenciaForm.setValue('slot_horario_id', Number(val), { shouldValidate: true })}
                 >
-                  <SelectTrigger id="emergencia_slot_horario_id" className="h-10 rounded-lg text-sm bg-background">
+                  <SelectTrigger id="emergencia_slot_horario_id" className="h-10 w-full rounded-lg text-sm bg-background">
                     <SelectValue placeholder="General / Sin materia asignada" />
                   </SelectTrigger>
                   <SelectContent>

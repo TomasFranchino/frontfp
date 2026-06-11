@@ -23,6 +23,7 @@ import { z } from 'zod';
 import { toast } from 'sonner';
 
 import api from '@/lib/api';
+import { getLocalDateString } from '@/lib/utils';
 import { useGeolocation } from '@/hooks/useGeolocation';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -56,7 +57,7 @@ const asincronicaSchema = z.object({
   const getOffsetDateStr = (offsetDays: number) => {
     const d = new Date();
     d.setDate(d.getDate() + offsetDays);
-    return d.toISOString().split('T')[0];
+    return getLocalDateString(d);
   };
   const min = getOffsetDateStr(-7);
   const max = getOffsetDateStr(7);
@@ -151,7 +152,7 @@ export function EstadoHoyPage() {
     resolver: zodResolver(asincronicaSchema) as any,
     defaultValues: {
       slot_horario_id: 0,
-      fecha_dictado: new Date().toISOString().split('T')[0],
+      fecha_dictado: getLocalDateString(),
       nota: '',
     },
   });
@@ -161,12 +162,12 @@ export function EstadoHoyPage() {
     defaultValues: {
       slot_horario_id: 0,
       nota_docente: '',
-      fecha: new Date().toISOString().split('T')[0],
+      fecha: getLocalDateString(),
     },
   });
 
   // Carga de clases para los modales
-  const watchAsyncFecha = asincronicaForm.watch('fecha_dictado') || new Date().toISOString().split('T')[0];
+  const watchAsyncFecha = asincronicaForm.watch('fecha_dictado') || getLocalDateString();
   const { data: clasesAsyncFecha, isLoading: isClasesAsyncLoading } = useQuery({
     queryKey: ['asistencia', 'mis_clases_hoy', watchAsyncFecha],
     queryFn: async () => {
@@ -178,7 +179,7 @@ export function EstadoHoyPage() {
     enabled: isAsincronicaOpen,
   });
 
-  const watchEmergFecha = emergenciaForm.watch('fecha') || new Date().toISOString().split('T')[0];
+  const watchEmergFecha = emergenciaForm.watch('fecha') || getLocalDateString();
   const { data: clasesEmergFecha, isLoading: isClasesEmergLoading } = useQuery({
     queryKey: ['asistencia', 'mis_clases_hoy', watchEmergFecha],
     queryFn: async () => {
@@ -193,13 +194,13 @@ export function EstadoHoyPage() {
   const minDateStr = React.useMemo(() => {
     const d = new Date();
     d.setDate(d.getDate() - 7);
-    return d.toISOString().split('T')[0];
+    return getLocalDateString(d);
   }, []);
 
   const maxDateStr = React.useMemo(() => {
     const d = new Date();
     d.setDate(d.getDate() + 7);
-    return d.toISOString().split('T')[0];
+    return getLocalDateString(d);
   }, []);
 
   // Mutación: Fichar Entrada
@@ -640,6 +641,17 @@ export function EstadoHoyPage() {
               >
                 Volver al Panel de Control
               </Button>
+              <div>
+                <p className="text-sm text-slate-400 pb-2">¿Debería haber clase programada?</p>
+                <Button
+                  variant="outline"
+                  className="w-full h-11 justify-start rounded-xl border-slate-800 bg-slate-950/30 text-slate-200 hover:bg-slate-900 text-xs font-semibold gap-3"
+                  onClick={() => setIsEmergenciaOpen(true)}
+                >
+                  <AlertCircle className="h-4.5 w-4.5 text-red-400" />
+                  Reportar Inconveniente / Emergencia
+                </Button>
+              </div>
             </div>
           </main>
         </div>
@@ -880,7 +892,7 @@ export function EstadoHoyPage() {
       {/* 2. MODAL DECLARAR ASINCRÓNICA */}
       {/* ========================================== */}
       <Dialog open={isAsincronicaOpen} onOpenChange={setIsAsincronicaOpen}>
-        <DialogContent className="max-w-md p-6 rounded-2xl bg-slate-900 border-slate-800 text-white">
+        <DialogContent className="grid-cols-1 max-w-md p-6 rounded-2xl bg-slate-900 border-slate-800 text-white">
           <DialogHeader className="pb-2 border-b border-slate-800">
             <DialogTitle className="text-lg font-bold text-blue-400 flex items-center gap-2">
               <Clock className="h-5 w-5" />
@@ -985,7 +997,7 @@ export function EstadoHoyPage() {
       {/* 3. MODAL REPORTAR EMERGENCIA */}
       {/* ========================================== */}
       <Dialog open={isEmergenciaOpen} onOpenChange={setIsEmergenciaOpen}>
-        <DialogContent className="max-w-md p-6 rounded-2xl bg-slate-900 border-slate-800 text-white">
+        <DialogContent className="grid-cols-1 max-w-md p-6 rounded-2xl bg-slate-900 border-slate-800 text-white">
           <DialogHeader className="pb-2 border-b border-slate-800">
             <DialogTitle className="text-lg font-bold text-red-400 flex items-center gap-2">
               <AlertCircle className="h-5 w-5" />
@@ -1022,7 +1034,7 @@ export function EstadoHoyPage() {
                   value={emergenciaForm.watch('slot_horario_id') ? String(emergenciaForm.watch('slot_horario_id')) : '0'}
                   onValueChange={(val) => emergenciaForm.setValue('slot_horario_id', Number(val), { shouldValidate: true })}
                 >
-                  <SelectTrigger id="emergencia_slot_horario_id" className="h-10 rounded-lg text-xs bg-slate-950 border-slate-800 text-slate-200">
+                  <SelectTrigger id="emergencia_slot_horario_id" className="h-10 w-full rounded-lg text-xs bg-slate-950 border-slate-800 text-slate-200">
                     <SelectValue placeholder="General / Sin materia asignada" />
                   </SelectTrigger>
                   <SelectContent className="bg-slate-950 border-slate-800 text-white">

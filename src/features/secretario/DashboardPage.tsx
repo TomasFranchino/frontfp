@@ -4,18 +4,18 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { 
-  ArrowRight, 
-  FileSpreadsheet, 
-  Users, 
-  Settings, 
-  CalendarRange, 
-  ShieldAlert, 
-  Activity, 
-  MapPin, 
-  CheckCircle2, 
-  XCircle, 
-  GraduationCap, 
+import {
+  ArrowRight,
+  FileSpreadsheet,
+  Users,
+  Settings,
+  CalendarRange,
+  ShieldAlert,
+  Activity,
+  MapPin,
+  CheckCircle2,
+  XCircle,
+  GraduationCap,
   AlertTriangle,
   BookOpen,
   Calendar,
@@ -174,8 +174,8 @@ export function SecretarioDashboardPage() {
       value: stats?.emergencias_pendientes ?? 0,
       description: 'Reportes técnicos que requieren revisión',
       icon: ShieldAlert,
-      color: (stats?.emergencias_pendientes ?? 0) > 0 
-        ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 animate-pulse border border-rose-200 dark:border-rose-900/50' 
+      color: (stats?.emergencias_pendientes ?? 0) > 0
+        ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 animate-pulse border border-rose-200 dark:border-rose-900/50'
         : 'bg-gray-500/10 text-gray-500 dark:text-gray-400',
       link: '/secretario/emergencias',
     },
@@ -231,11 +231,10 @@ export function SecretarioDashboardPage() {
             const CardWrapper = kpi.link ? Link : 'div';
 
             return (
-              <Card 
-                key={kpi.label} 
-                className={`border-border bg-card shadow-sm transition-all duration-300 ${
-                  kpi.link ? 'hover:scale-[1.02] hover:shadow-md hover:border-primary/20' : ''
-                }`}
+              <Card
+                key={kpi.label}
+                className={`border-border bg-card shadow-sm transition-all duration-300 ${kpi.link ? 'hover:scale-[1.02] hover:shadow-md hover:border-primary/20' : ''
+                  }`}
               >
                 <CardWrapper to={kpi.link || ''} className="block h-full">
                   <CardHeader className="space-y-4 h-full flex flex-col justify-between">
@@ -304,15 +303,15 @@ export function SecretarioDashboardPage() {
             ) : (
               <div className="divide-y divide-border/40 overflow-y-auto max-h-[400px]">
                 {stats.docentes_en_aula.map((docente) => (
-                  <div key={docente.docente_id} className="flex items-center justify-between p-4 hover:bg-muted/30 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className="relative flex h-3.5 w-3.5">
+                  <div key={docente.docente_id} className="flex items-center justify-between p-4 hover:bg-muted/30 transition-colors gap-4">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <div className="relative flex h-3.5 w-3.5 shrink-0">
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                         <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500"></span>
                       </div>
-                      <div>
-                        <p className="text-sm font-semibold text-foreground">{docente.docente_nombre}</p>
-                        <p className="text-xs text-muted-foreground">{docente.materia_nombre}</p>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-foreground truncate">{docente.docente_nombre}</p>
+                        <p className="text-xs text-muted-foreground truncate" title={docente.materia_nombre}>{docente.materia_nombre}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
@@ -324,7 +323,7 @@ export function SecretarioDashboardPage() {
                         <span className="inline-flex rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary capitalize border border-primary/20">
                           {docente.tipo_clase.replace('_', ' ')}
                         </span>
-                        
+
                         {/* Validación GPS / WiFi */}
                         {docente.ubicacion_validada === true ? (
                           <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 font-medium bg-emerald-50 dark:bg-emerald-950/20 px-1.5 py-0.5 rounded border border-emerald-200/50">
@@ -348,21 +347,29 @@ export function SecretarioDashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Emergencias / Alertas Activas (Derecha) */}
+        {/* Emergencias / Emergencias pendientes (Derecha) */}
         <Card className="border-border bg-card shadow-sm flex flex-col">
           <CardHeader className="flex flex-row items-center justify-between border-b border-border/40 pb-4">
             <div>
               <CardTitle className="text-lg flex items-center gap-2">
                 <AlertTriangle className="h-5 w-5 text-amber-500" />
-                Alertas Activas
+                Emergencias Pendientes
               </CardTitle>
               <CardDescription>Incidentes técnicos notificados por docentes que requieren resolver.</CardDescription>
             </div>
-            {emergencias && emergencias.length > 0 && (
-              <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700 border border-amber-200 animate-pulse">
-                {emergencias.length} Pendientes
-              </span>
-            )}
+            <div className="flex items-center gap-3">
+              {emergencias && emergencias.length > 0 && (
+                <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700 border border-amber-200 animate-pulse">
+                  {emergencias.length} Pendientes
+                </span>
+              )}
+              <Link
+                to="/secretario/emergencias"
+                className="text-xs font-medium text-primary hover:underline hover:text-primary/80 transition-colors"
+              >
+                Ver historial
+              </Link>
+            </div>
           </CardHeader>
           <CardContent className="flex-1 p-0">
             {emergenciasLoading ? (
@@ -383,14 +390,14 @@ export function SecretarioDashboardPage() {
                 {emergencias.map((solicitud) => (
                   <div key={solicitud.id} className="p-4 hover:bg-muted/30 transition-colors flex flex-col gap-3">
                     <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-semibold text-primary">{solicitud.docente_nombre}</p>
-                          <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-semibold text-primary truncate max-w-[150px] sm:max-w-none">{solicitud.docente_nombre}</p>
+                          <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded shrink-0">
                             {solicitud.fecha}
                           </span>
                         </div>
-                        <p className="text-xs font-medium text-foreground mt-0.5">{solicitud.materia_nombre}</p>
+                        <p className="text-xs font-medium text-foreground mt-0.5 truncate" title={solicitud.materia_nombre}>{solicitud.materia_nombre}</p>
                       </div>
                       <div className="flex gap-1.5">
                         <Button

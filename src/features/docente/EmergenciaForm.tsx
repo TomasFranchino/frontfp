@@ -7,6 +7,7 @@ import { ArrowLeft, AlertCircle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import api from '@/lib/api';
+import { getLocalDateString } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -38,11 +39,11 @@ export function EmergenciaFormPage() {
     defaultValues: {
       slot_horario_id: 0,
       nota_docente: '',
-      fecha: new Date().toISOString().split('T')[0],
+      fecha: getLocalDateString(),
     },
   });
 
-  const watchFecha = form.watch('fecha') || new Date().toISOString().split('T')[0];
+  const watchFecha = form.watch('fecha') || getLocalDateString();
 
   const { data: clasesHoy, isLoading } = useQuery({
     queryKey: ['asistencia', 'mis_clases_hoy', watchFecha],
@@ -110,7 +111,7 @@ export function EmergenciaFormPage() {
                 value={form.watch('slot_horario_id')?.toString() || '0'}
                 onValueChange={(val) => form.setValue('slot_horario_id', Number(val))}
               >
-                <SelectTrigger className="h-12 rounded-xl text-base bg-background">
+                <SelectTrigger className="h-12 w-full rounded-xl text-base bg-background">
                   <SelectValue placeholder="General / Sin materia asignada" />
                 </SelectTrigger>
                 <SelectContent>

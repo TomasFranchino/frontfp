@@ -8,6 +8,7 @@ import { ArrowLeft, Clock3, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import api from '@/lib/api';
+import { getLocalDateString } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -31,7 +32,7 @@ const asincronicaSchema = z.object({
   const getOffsetDateStr = (offsetDays: number) => {
     const d = new Date();
     d.setDate(d.getDate() + offsetDays);
-    return d.toISOString().split('T')[0];
+    return getLocalDateString(d);
   };
   const min = getOffsetDateStr(-7);
   const max = getOffsetDateStr(7);
@@ -49,25 +50,25 @@ export function DeclararAsincronicaPage() {
   const minDateStr = React.useMemo(() => {
     const d = new Date();
     d.setDate(d.getDate() - 7);
-    return d.toISOString().split('T')[0];
+    return getLocalDateString(d);
   }, []);
 
   const maxDateStr = React.useMemo(() => {
     const d = new Date();
     d.setDate(d.getDate() + 7);
-    return d.toISOString().split('T')[0];
+    return getLocalDateString(d);
   }, []);
 
   const form = useForm<AsincronicaValues>({
     resolver: zodResolver(asincronicaSchema) as any,
     defaultValues: {
       slot_horario_id: 0,
-      fecha_dictado: new Date().toISOString().split('T')[0], // Hoy en AAAA-MM-DD
+      fecha_dictado: getLocalDateString(), // Hoy en AAAA-MM-DD
       nota: '',
     },
   });
 
-  const watchFecha = form.watch('fecha_dictado') || new Date().toISOString().split('T')[0];
+  const watchFecha = form.watch('fecha_dictado') || getLocalDateString();
 
   const { data: clasesHoy, isLoading } = useQuery({
     queryKey: ['asistencia', 'mis_clases_hoy', watchFecha],
@@ -121,7 +122,7 @@ export function DeclararAsincronicaPage() {
                 value={form.watch('slot_horario_id') ? form.watch('slot_horario_id').toString() : ''}
                 onValueChange={(val) => form.setValue('slot_horario_id', Number(val))}
               >
-                <SelectTrigger className="h-10 rounded-lg text-sm bg-background">
+                <SelectTrigger className="h-10 w-full rounded-lg text-sm bg-background">
                   <SelectValue placeholder="Seleccioná la materia..." />
                 </SelectTrigger>
                 <SelectContent>

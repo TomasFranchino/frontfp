@@ -2,20 +2,23 @@ import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { Plus, Pencil, Trash2, Library, Search, X } from 'lucide-react';
+import { useState, useMemo } from 'react';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
 
 import api from '@/lib/api';
+import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Switch } from '@/components/ui/switch';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { EmptyState } from '@/components/ui/empty-state';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 type CarreraResumen = {
   id: number;
@@ -78,19 +81,43 @@ async function deleteMateria(id: number): Promise<void> {
 
 export function MateriasPage() {
   const queryClient = useQueryClient();
-  const [incluirInactivas, setIncluirInactivas] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingMateria, setEditingMateria] = useState<Materia | null>(null);
+  
+  const [searchTerm, setSearchTerm] = useState('');
+  const [carreraFilter, setCarreraFilter] = useState('Todas');
+  const [estadoFilter, setEstadoFilter] = useState('Todas');
+  
+  const navigate = useNavigate();
 
   const { data: materias, isLoading, isError } = useQuery({
-    queryKey: ['academico', 'materias', { incluirInactivas }],
-    queryFn: () => fetchMaterias(incluirInactivas),
+    queryKey: ['academico', 'materias'],
+    queryFn: () => fetchMaterias(true),
   });
 
   const { data: carreras, isLoading: isLoadingCarreras } = useQuery({
     queryKey: ['academico', 'carreras'],
     queryFn: fetchCarreras,
   });
+
+  const filteredMaterias = useMemo(() => {
+    if (!materias) return [];
+    
+    return materias.filter((materia) => {
+      const matchesSearch = searchTerm === '' || 
+        materia.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        materia.codigo_siu.toLowerCase().includes(searchTerm.toLowerCase());
+        
+      const matchesCarrera = carreraFilter === 'Todas' || 
+        materia.carreras.some(c => c.id.toString() === carreraFilter);
+        
+      const matchesEstado = estadoFilter === 'Todas' || 
+        (estadoFilter === 'Activas' && materia.activa) ||
+        (estadoFilter === 'Inactivas' && !materia.activa);
+        
+      return matchesSearch && matchesCarrera && matchesEstado;
+    });
+  }, [materias, searchTerm, carreraFilter, estadoFilter]);
 
   const createMutation = useMutation({
     mutationFn: createMateria,
@@ -189,22 +216,61 @@ export function MateriasPage() {
         </div>
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2">
-            <Switch
-              id="incluir-inactivas-materias"
-              checked={incluirInactivas}
-              onCheckedChange={setIncluirInactivas}
-            />
-            <Label htmlFor="incluir-inactivas-materias" className="cursor-pointer font-normal">
-              Incluir inactivas
-            </Label>
-          </div>
-
           <Button onClick={handleOpenNew} className="shrink-0 gap-2">
             <Plus className="h-4 w-4" />
             Nueva Materia
           </Button>
         </div>
+      </div>
+
+      <div className="flex flex-col gap-4 md:flex-row md:items-center bg-card p-4 rounded-lg border shadow-sm">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input 
+            placeholder="Buscar por nombre o código SIU..." 
+            value={searchTerm} 
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        
+        <Select value={carreraFilter} onValueChange={setCarreraFilter}>
+          <SelectTrigger className="w-[200px]">
+            <SelectValue placeholder="Carrera" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="Todas">Todas las carreras</SelectItem>
+            {carreras?.map(c => (
+              <SelectItem key={c.id} value={c.id.toString()}>{c.codigo}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={estadoFilter} onValueChange={setEstadoFilter}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Estado" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="Todas">Todos los estados</SelectItem>
+            <SelectItem value="Activas">Activas</SelectItem>
+            <SelectItem value="Inactivas">Inactivas</SelectItem>
+          </SelectContent>
+        </Select>
+
+        {(searchTerm !== '' || carreraFilter !== 'Todas' || estadoFilter !== 'Todas') && (
+          <Button 
+            variant="ghost" 
+            onClick={() => {
+              setSearchTerm('');
+              setCarreraFilter('Todas');
+              setEstadoFilter('Todas');
+            }}
+            className="px-2"
+          >
+            <X className="h-4 w-4 mr-2" />
+            Limpiar
+          </Button>
+        )}
       </div>
 
       <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
@@ -215,11 +281,29 @@ export function MateriasPage() {
             <Skeleton className="h-8 w-full" />
           </div>
         ) : isError ? (
-          <div className="p-6 text-center text-destructive">Ocurrió un error al cargar las materias.</div>
+          <div className="p-12 text-center text-destructive">Ocurrió un error al cargar las materias.</div>
         ) : !materias || materias.length === 0 ? (
-          <div className="p-10 text-center text-muted-foreground">
-            No hay materias para mostrar con el filtro actual.
-          </div>
+          <EmptyState
+            icon={Library}
+            title="Sin materias registradas"
+            description="No hay materias cargadas en el sistema. Empezá por crear una nueva materia."
+            actionLabel="Nueva Materia"
+            actionIcon={Plus}
+            onAction={handleOpenNew}
+          />
+        ) : filteredMaterias.length === 0 ? (
+          <EmptyState
+            icon={Library}
+            title="No se encontraron materias"
+            description="No hay resultados que coincidan con los filtros de búsqueda."
+            actionLabel="Limpiar filtros"
+            actionIcon={X}
+            onAction={() => {
+              setSearchTerm('');
+              setCarreraFilter('Todas');
+              setEstadoFilter('Todas');
+            }}
+          />
         ) : (
           <Table>
             <TableHeader>
@@ -233,8 +317,12 @@ export function MateriasPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {materias.map((materia) => (
-                <TableRow key={materia.id} className={!materia.activa ? 'opacity-75' : undefined}>
+              {filteredMaterias.map((materia) => (
+                <TableRow 
+                  key={materia.id} 
+                  className={cn("cursor-pointer hover:bg-muted/50 transition-colors", !materia.activa ? 'opacity-75' : undefined)}
+                  onClick={() => navigate(`/secretario/materias/${materia.id}`)}
+                >
                   <TableCell className="font-medium text-primary">{materia.codigo_siu}</TableCell>
                   <TableCell>{materia.nombre}</TableCell>
                   <TableCell>
@@ -265,7 +353,7 @@ export function MateriasPage() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
-                      <Button variant="ghost" size="icon" onClick={() => handleOpenEdit(materia)} aria-label="Editar">
+                      <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleOpenEdit(materia); }} aria-label="Editar">
                         <Pencil className="h-4 w-4" />
                       </Button>
                       {materia.activa ? (
@@ -274,7 +362,8 @@ export function MateriasPage() {
                           size="icon"
                           className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                           disabled={deleteMutation.isPending}
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.stopPropagation();
                             if (confirm('¿Desactivar esta materia? Podrás reactivarla desde Editar.')) {
                               deleteMutation.mutate(materia.id);
                             }
@@ -293,18 +382,18 @@ export function MateriasPage() {
         )}
       </div>
 
-      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="sm:max-w-[520px]">
-          <DialogHeader>
-            <DialogTitle>{editingMateria ? 'Editar Materia' : 'Nueva Materia'}</DialogTitle>
-            <DialogDescription>
+      <Sheet open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <SheetContent className="sm:max-w-[520px] overflow-y-auto w-full">
+          <SheetHeader>
+            <SheetTitle>{editingMateria ? 'Editar Materia' : 'Nueva Materia'}</SheetTitle>
+            <SheetDescription>
               {editingMateria
                 ? 'Modificá los datos, las carreras asociadas o reactivá la materia marcando "Materia activa".'
                 : 'Completá los datos y seleccioná al menos una carrera.'}
-            </DialogDescription>
-          </DialogHeader>
+            </SheetDescription>
+          </SheetHeader>
 
-          <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-4 py-4">
+          <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-4 px-4 sm:px-6 py-4 pb-8">
             <div className="space-y-2">
               <Label htmlFor="codigo_siu">Código SIU</Label>
               <Input id="codigo_siu" {...form.register('codigo_siu')} placeholder="Ej: MAT-01" />
@@ -388,8 +477,8 @@ export function MateriasPage() {
               </Button>
             </div>
           </form>
-        </DialogContent>
-      </Dialog>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

@@ -13,12 +13,11 @@ import { EmergenciaFormPage } from '@/features/docente/EmergenciaForm';
 import { SecretarioDashboardPage } from '@/features/secretario/DashboardPage';
 import { CarrerasPage } from '@/features/secretario/academico/CarrerasPage';
 import { MateriasPage } from '@/features/secretario/academico/MateriasPage';
-import { AsignacionesPage } from '@/features/secretario/asignaciones/AsignacionesPage';
+import { MateriaDetailPage } from '@/features/secretario/academico/MateriaDetailPage';
 import { EmergenciasPage } from '@/features/secretario/emergencias/EmergenciasPage';
 import { ImportacionPage } from '@/features/secretario/importacion/ImportacionPage';
 import { ConfiguracionPage } from '@/features/secretario/configuracion/ConfiguracionPage';
 import { ReportesPage } from '@/features/secretario/reportes/ReportesPage';
-import SlotsPage from '@/features/secretario/academico/SlotsPage';
 import CalendarioPage from '@/features/secretario/calendario/CalendarioPage';
 import DocentesPage from '@/features/secretario/usuarios/DocentesPage';
 import SecretariosPage from '@/features/secretario/usuarios/SecretariosPage';
@@ -154,12 +153,8 @@ const router = createBrowserRouter([
             element: <MateriasPage />,
           },
           {
-            path: '/secretario/slots',
-            element: <SlotsPage />,
-          },
-          {
-            path: '/secretario/asignaciones',
-            element: <AsignacionesPage />,
+            path: '/secretario/materias/:id',
+            element: <MateriaDetailPage />,
           },
           {
             path: '/secretario/calendario',

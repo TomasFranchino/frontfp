@@ -8,7 +8,6 @@ import { toast } from 'sonner';
 
 import api from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -22,7 +21,6 @@ import {
   formatNombreCompleto,
   getBackendMessage,
 } from '@/features/secretario/usuarios/types';
-import { UsuarioEstadoToggle } from '@/features/secretario/usuarios/UsuarioEstadoToggle';
 
 const usuarioFormSchema = z
   .object({
@@ -86,6 +84,61 @@ async function toggleSecretarioEstado({
 }): Promise<MensajeOut> {
   const { data } = await api.patch<MensajeOut>(`/auth/secretarios/${id}/estado`, { activo });
   return data;
+}
+interface SecretarioEstadoButtonProps {
+  activo: boolean;
+  pending: boolean;
+  bloqueadoPorCuentaPropia: boolean;
+  onClick: () => void;
+}
+
+function SecretarioEstadoButton({
+  activo,
+  pending,
+  bloqueadoPorCuentaPropia,
+  onClick,
+}: SecretarioEstadoButtonProps) {
+  const [isHovered, setIsHovered] = useState(false);
+
+  let label = '';
+  let className = '';
+
+  if (bloqueadoPorCuentaPropia) {
+    label = 'Tu cuenta';
+    className = 'border-border bg-muted/50 text-muted-foreground cursor-not-allowed';
+  } else if (pending) {
+    label = 'Cargando...';
+    className = 'border-border bg-muted/50 text-muted-foreground/50 cursor-not-allowed';
+  } else if (activo) {
+    if (isHovered) {
+      label = 'Desactivar';
+      className = 'border-border bg-muted text-muted-foreground shadow-sm cursor-pointer';
+    } else {
+      label = 'Activo';
+      className = 'border-green-200 bg-green-100 text-green-700 shadow-sm';
+    }
+  } else {
+    if (isHovered) {
+      label = 'Activar';
+      className = 'border-green-200 bg-green-100 text-green-700 shadow-sm cursor-pointer';
+    } else {
+      label = 'Inactivo';
+      className = 'border-border bg-muted text-muted-foreground shadow-sm';
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      disabled={pending || bloqueadoPorCuentaPropia}
+      onMouseEnter={() => !bloqueadoPorCuentaPropia && setIsHovered(true)}
+      onMouseLeave={() => !bloqueadoPorCuentaPropia && setIsHovered(false)}
+      onClick={onClick}
+      className={`inline-flex items-center justify-center rounded-full px-3 py-1 text-xs font-semibold border transition-all duration-200 min-w-[90px] h-7 ${className}`}
+    >
+      {label}
+    </button>
+  );
 }
 
 export default function SecretariosPage() {
@@ -246,8 +299,7 @@ export default function SecretariosPage() {
                 <TableHead>DNI / Usuario</TableHead>
                 <TableHead>Nombre Completo</TableHead>
                 <TableHead>Email</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead className="w-[160px] text-center">Activar / Desactivar</TableHead>
+                <TableHead className="w-[160px] text-center">Estado</TableHead>
                 <TableHead className="w-[80px]"></TableHead>
               </TableRow>
             </TableHeader>
@@ -260,31 +312,17 @@ export default function SecretariosPage() {
                     <TableCell className="font-medium text-primary">{secretario.user.username}</TableCell>
                     <TableCell>{formatNombreCompleto(secretario.user)}</TableCell>
                     <TableCell>{secretario.user.email}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant="secondary"
-                        className={
-                          secretario.activo
-                            ? 'border-green-200 bg-green-100 text-green-700 hover:bg-green-100'
-                            : 'border-border bg-muted text-muted-foreground hover:bg-muted'
-                        }
-                      >
-                        {secretario.activo ? 'Activo' : 'Inactivo'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <UsuarioEstadoToggle
+                    <TableCell className="text-center">
+                      <SecretarioEstadoButton
                         activo={secretario.activo}
-                        bloqueadoPorCuentaPropia={isCurrentUser}
-                        disabled={isCurrentUser}
                         pending={estadoMutation.isPending}
-                        onToggle={(activo) => {
+                        bloqueadoPorCuentaPropia={isCurrentUser}
+                        onClick={() => {
                           if (isCurrentUser) {
                             toast.error('No podés desactivar tu propia cuenta.');
                             return;
                           }
-
-                          estadoMutation.mutate({ id: secretario.id, activo });
+                          estadoMutation.mutate({ id: secretario.id, activo: !secretario.activo });
                         }}
                       />
                     </TableCell>

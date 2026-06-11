@@ -223,7 +223,7 @@ export function CarrerasPage() {
                 value={form.watch('institucion')}
                 onValueChange={(val: 'ices' | 'ucse' | 'otro_convenio') => form.setValue('institucion', val)}
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Seleccioná una institución" />
                 </SelectTrigger>
                 <SelectContent>
@@ -255,7 +255,7 @@ export function CarrerasPage() {
 
             <div className="space-y-2">
               <Label htmlFor="duracion_anios">Duración (años)</Label>
-              <Input id="duracion_anios" type="number" {...form.register('duracion_anios')} />
+              <Input id="duracion_anios" type="number" min={1} {...form.register('duracion_anios')} />
               {form.formState.errors.duracion_anios && (
                 <p className="text-xs text-destructive">{form.formState.errors.duracion_anios.message}</p>
               )}

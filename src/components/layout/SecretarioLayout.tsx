@@ -6,13 +6,11 @@ import {
   FileSpreadsheet,
   FileText,
   GraduationCap,
-  Layers3,
   LogOut,
   Settings2,
   ShieldAlert,
   UserCog,
   Users,
-  ClipboardList,
   Menu,
   X,
 } from 'lucide-react';
@@ -39,8 +37,6 @@ const sidebarGroups: SidebarGroup[] = [
     items: [
       { label: 'Carreras', to: '/secretario/carreras', icon: GraduationCap },
       { label: 'Materias', to: '/secretario/materias', icon: BookOpen },
-      { label: 'Horarios', to: '/secretario/slots', icon: Layers3 },
-      { label: 'Asignaciones', to: '/secretario/asignaciones', icon: ClipboardList },
       { label: 'Calendario', to: '/secretario/calendario', icon: CalendarDays },
     ],
   },
