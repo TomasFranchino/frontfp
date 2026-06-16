@@ -69,7 +69,8 @@ const slotSchema = z
     path: ['hora_fin'],
   });
 
-type SlotFormValues = z.infer<typeof slotSchema>;
+type SlotFormValues = z.output<typeof slotSchema>;
+type SlotFormInput = z.input<typeof slotSchema>;
 
 async function fetchSlots(): Promise<SlotHorario[]> {
   const { data } = await api.get<SlotHorario[]>('/academico/slots');
@@ -177,8 +178,8 @@ export default function SlotsPage() {
     });
   }, [slots, materias, materiasById]);
 
-  const form = useForm<SlotFormValues>({
-    resolver: zodResolver(slotSchema) as any,
+  const form = useForm<SlotFormInput, unknown, SlotFormValues>({
+    resolver: zodResolver(slotSchema),
     defaultValues: {
       materia_id: 0,
       dia_semana: 0,
@@ -410,7 +411,7 @@ export default function SlotsPage() {
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-4 py-4 px-4">{/* P-4 */}
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4 px-4">{/* P-4 */}
             <div className="space-y-2">
               <Label>Materia</Label>
               <Select

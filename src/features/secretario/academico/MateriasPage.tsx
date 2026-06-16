@@ -51,7 +51,8 @@ const materiaSchema = z.object({
   carreras_ids: z.array(z.number()).min(1, 'Seleccioná al menos una carrera.'),
 });
 
-type MateriaFormValues = z.infer<typeof materiaSchema>;
+type MateriaFormValues = z.output<typeof materiaSchema>;
+type MateriaFormInput = z.input<typeof materiaSchema>;
 
 async function fetchMaterias(incluirInactivas: boolean): Promise<Materia[]> {
   const { data } = await api.get<Materia[]>('/academico/materias', {
@@ -145,8 +146,8 @@ export function MateriasPage() {
     },
   });
 
-  const form = useForm<MateriaFormValues>({
-    resolver: zodResolver(materiaSchema) as any,
+  const form = useForm<MateriaFormInput, unknown, MateriaFormValues>({
+    resolver: zodResolver(materiaSchema),
     defaultValues: {
       codigo_siu: '',
       nombre: '',
@@ -393,7 +394,7 @@ export function MateriasPage() {
             </SheetDescription>
           </SheetHeader>
 
-          <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-4 px-4 sm:px-6 py-4 pb-8">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 px-4 sm:px-6 py-4 pb-8">
             <div className="space-y-2">
               <Label htmlFor="codigo_siu">Código SIU</Label>
               <Input id="codigo_siu" {...form.register('codigo_siu')} placeholder="Ej: MAT-01" />

@@ -21,6 +21,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
+import type { AxiosError } from 'axios';
 
 import api from '@/lib/api';
 import { getLocalDateString } from '@/lib/utils';
@@ -67,7 +68,8 @@ const asincronicaSchema = z.object({
   path: ["fecha_dictado"]
 });
 
-type AsincronicaValues = z.infer<typeof asincronicaSchema>;
+type AsincronicaValues = z.output<typeof asincronicaSchema>;
+type AsincronicaInput = z.input<typeof asincronicaSchema>;
 
 const emergenciaSchema = z.object({
   slot_horario_id: z.coerce.number().optional().or(z.literal(0)),
@@ -75,7 +77,8 @@ const emergenciaSchema = z.object({
   fecha: z.string().min(1, 'La fecha es obligatoria.'),
 });
 
-type EmergenciaValues = z.infer<typeof emergenciaSchema>;
+type EmergenciaValues = z.output<typeof emergenciaSchema>;
+type EmergenciaInput = z.input<typeof emergenciaSchema>;
 
 // --- TIPOS ---
 type ProximaClase = {
@@ -148,8 +151,8 @@ export function EstadoHoyPage() {
   });
 
   // Forms de los modales inline
-  const asincronicaForm = useForm<AsincronicaValues>({
-    resolver: zodResolver(asincronicaSchema) as any,
+  const asincronicaForm = useForm<AsincronicaInput, unknown, AsincronicaValues>({
+    resolver: zodResolver(asincronicaSchema),
     defaultValues: {
       slot_horario_id: 0,
       fecha_dictado: getLocalDateString(),
@@ -157,8 +160,8 @@ export function EstadoHoyPage() {
     },
   });
 
-  const emergenciaForm = useForm<EmergenciaValues>({
-    resolver: zodResolver(emergenciaSchema) as any,
+  const emergenciaForm = useForm<EmergenciaInput, unknown, EmergenciaValues>({
+    resolver: zodResolver(emergenciaSchema),
     defaultValues: {
       slot_horario_id: 0,
       nota_docente: '',
@@ -203,6 +206,8 @@ export function EstadoHoyPage() {
     return getLocalDateString(d);
   }, []);
 
+  const selectedAsyncSlotId = Number(asincronicaForm.watch('slot_horario_id') || 0);
+
   // Mutación: Fichar Entrada
   const entradaMutation = useMutation({
     mutationFn: async (payload: FichajePayload) => {
@@ -215,10 +220,10 @@ export function EstadoHoyPage() {
       setResultadoFichaje(data);
       queryClient.invalidateQueries({ queryKey: ['asistencia', 'estado_hoy'] });
     },
-    onError: (err: any) => {
+    onError: (err: AxiosError<{ success?: boolean; mensaje?: string }>) => {
       const errorData = err.response?.data;
       if (errorData && 'success' in errorData) {
-        setResultadoFichaje(errorData);
+        setResultadoFichaje(errorData as FichajeResponse);
         queryClient.invalidateQueries({ queryKey: ['asistencia', 'estado_hoy'] });
       } else {
         toast.error(err.response?.data?.mensaje || 'Error al registrar la entrada.');
@@ -238,10 +243,10 @@ export function EstadoHoyPage() {
       setResultadoFichaje(data);
       queryClient.invalidateQueries({ queryKey: ['asistencia', 'estado_hoy'] });
     },
-    onError: (err: any) => {
+    onError: (err: AxiosError<{ success?: boolean; mensaje?: string }>) => {
       const errorData = err.response?.data;
       if (errorData && 'success' in errorData) {
-        setResultadoFichaje(errorData);
+        setResultadoFichaje(errorData as FichajeResponse);
         queryClient.invalidateQueries({ queryKey: ['asistencia', 'estado_hoy'] });
       } else {
         toast.error(err.response?.data?.mensaje || 'Error al registrar la salida.');
@@ -262,7 +267,7 @@ export function EstadoHoyPage() {
       queryClient.invalidateQueries({ queryKey: ['asistencia', 'estado_hoy'] });
       navigate('/docente/dashboard');
     },
-    onError: (err: any) => {
+    onError: (err: AxiosError<{ mensaje?: string; detail?: string }>) => {
       const msg = err.response?.data?.mensaje || err.response?.data?.detail || 'Error al declarar la clase.';
       toast.error(msg);
     }
@@ -285,7 +290,7 @@ export function EstadoHoyPage() {
       queryClient.invalidateQueries({ queryKey: ['asistencia', 'estado_hoy'] });
       navigate('/docente/dashboard');
     },
-    onError: (err: any) => {
+    onError: (err: AxiosError<{ mensaje?: string; detail?: string }>) => {
       const msg = err.response?.data?.mensaje || err.response?.data?.detail || 'Error al enviar el reporte.';
       toast.error(msg);
     }
@@ -917,7 +922,7 @@ export function EstadoHoyPage() {
                 </div>
               ) : (
                 <Select
-                  value={asincronicaForm.watch('slot_horario_id') ? asincronicaForm.watch('slot_horario_id').toString() : ''}
+                  value={selectedAsyncSlotId ? selectedAsyncSlotId.toString() : ''}
                   onValueChange={(val) => asincronicaForm.setValue('slot_horario_id', Number(val), { shouldValidate: true })}
                 >
                   <SelectTrigger

@@ -107,7 +107,7 @@ export function SecretarioDashboardPage() {
   });
 
   const form = useForm<ResolverEmergenciaFormValues>({
-    resolver: zodResolver(resolverEmergenciaSchema) as any,
+    resolver: zodResolver(resolverEmergenciaSchema),
     defaultValues: {
       nota_secretaria: '',
     },

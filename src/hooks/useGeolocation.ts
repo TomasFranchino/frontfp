@@ -53,7 +53,7 @@ export function useGeolocation() {
   }, []);
 
   useEffect(() => {
-    fetchLocation();
+    void (() => fetchLocation())();
   }, [fetchLocation]);
 
   return { location, error, isLoading, refetch: fetchLocation };

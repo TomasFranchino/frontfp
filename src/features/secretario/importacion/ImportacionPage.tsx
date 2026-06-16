@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Download, FileSpreadsheet, UploadCloud } from 'lucide-react';
 import { toast } from 'sonner';
 
-import plantillaImportacionUrl from '@/assets/SIU_Plantilla_Importacion.xlsx?url';
+const plantillaImportacionUrl = '/plantilla_importacion_siu.xlsx';
 import api from '@/lib/api';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -89,7 +89,7 @@ export function ImportacionPage() {
         </div>
 
         <Button asChild className="gap-2 bg-emerald-600 text-white hover:bg-emerald-700 self-start md:self-auto">
-          <a href={plantillaImportacionUrl} download="SIU_Plantilla_Importacion.xlsx">
+          <a href={plantillaImportacionUrl} download="plantilla_importacion_siu.xlsx">
             <FileSpreadsheet className="h-4 w-4" />
             <span>Descargar plantilla Excel</span>
             <Download className="h-4 w-4" />

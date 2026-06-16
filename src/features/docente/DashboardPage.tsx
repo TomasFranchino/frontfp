@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
+import type { AxiosError } from 'axios';
 
 import api from '@/lib/api';
 import { getLocalDateString } from '@/lib/utils';
@@ -71,7 +72,8 @@ const asincronicaSchema = z.object({
   path: ["fecha_dictado"]
 });
 
-type AsincronicaValues = z.infer<typeof asincronicaSchema>;
+type AsincronicaValues = z.output<typeof asincronicaSchema>;
+type AsincronicaInput = z.input<typeof asincronicaSchema>;
 
 const emergenciaSchema = z.object({
   slot_horario_id: z.coerce.number().optional().or(z.literal(0)),
@@ -79,7 +81,8 @@ const emergenciaSchema = z.object({
   fecha: z.string().min(1, 'La fecha es obligatoria.'),
 });
 
-type EmergenciaValues = z.infer<typeof emergenciaSchema>;
+type EmergenciaValues = z.output<typeof emergenciaSchema>;
+type EmergenciaInput = z.input<typeof emergenciaSchema>;
 
 export function DocenteDashboardPage() {
   const { user } = useAuth();
@@ -134,8 +137,8 @@ export function DocenteDashboardPage() {
   });
 
   // Forms
-  const asincronicaForm = useForm<AsincronicaValues>({
-    resolver: zodResolver(asincronicaSchema) as any,
+  const asincronicaForm = useForm<AsincronicaInput, unknown, AsincronicaValues>({
+    resolver: zodResolver(asincronicaSchema),
     defaultValues: {
       slot_horario_id: 0,
       fecha_dictado: getLocalDateString(),
@@ -143,8 +146,8 @@ export function DocenteDashboardPage() {
     },
   });
 
-  const emergenciaForm = useForm<EmergenciaValues>({
-    resolver: zodResolver(emergenciaSchema) as any,
+  const emergenciaForm = useForm<EmergenciaInput, unknown, EmergenciaValues>({
+    resolver: zodResolver(emergenciaSchema),
     defaultValues: {
       slot_horario_id: 0,
       nota_docente: '',
@@ -189,7 +192,7 @@ export function DocenteDashboardPage() {
       queryClient.invalidateQueries({ queryKey: ['asistencia', 'mis_materias_stats'] });
       queryClient.invalidateQueries({ queryKey: ['asistencia', 'mis_clases_hoy'] });
     },
-    onError: (err: any) => {
+    onError: (err: AxiosError<{ mensaje?: string; detail?: string }>) => {
       const msg = err.response?.data?.mensaje || err.response?.data?.detail || 'Ocurrió un error al declarar la clase.';
       toast.error(msg);
     }
@@ -210,7 +213,7 @@ export function DocenteDashboardPage() {
       emergenciaForm.reset();
       queryClient.invalidateQueries({ queryKey: ['asistencia', 'mis_materias_stats'] });
     },
-    onError: (err: any) => {
+    onError: (err: AxiosError<{ mensaje?: string; detail?: string }>) => {
       const msg = err.response?.data?.mensaje || err.response?.data?.detail || 'Ocurrió un error al enviar el reporte.';
       toast.error(msg);
     }

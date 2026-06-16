@@ -12,8 +12,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
-type InstitucionFilter = 'todas' | 'ICES' | 'UCSE';
+type InstitucionFilter = string;
 type AgruparPorFilter = 'docente' | 'carrera' | 'materia';
+
+type CarreraResumen = {
+  id: number;
+  institucion: string;
+  codigo: string;
+  nombre: string;
+};
 
 type DetalleFalta = {
   fecha: string;
@@ -106,10 +113,26 @@ export function ReportesPage() {
   const now = new Date();
   const [mes, setMes] = useState(String(now.getMonth() + 1));
   const [anio, setAnio] = useState(String(now.getFullYear()));
-  const [institucion, setInstitucion] = useState<InstitucionFilter>('todas');
+  const [institucion, setInstitucion] = useState<string>('todas');
   const [agruparPor, setAgruparPor] = useState<AgruparPorFilter>('docente');
   const [selectedReporte, setSelectedReporte] = useState<ReporteFila | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
+
+  // Consultamos carreras para obtener la lista de instituciones únicas de forma dinámica
+  const { data: carreras } = useQuery({
+    queryKey: ['academico', 'carreras'],
+    queryFn: async () => {
+      const { data } = await api.get<CarreraResumen[]>('/academico/carreras');
+      return data;
+    },
+  });
+
+  const filterInstitutions = useMemo(() => {
+    if (!carreras) return ['ices', 'ucse'];
+    const unique = Array.from(new Set(carreras.map((c) => c.institucion)))
+      .filter((inst): inst is string => Boolean(inst));
+    return unique;
+  }, [carreras]);
 
   const reportParams = useMemo(() => ({ mes, anio, institucion, agruparPor }), [anio, institucion, mes, agruparPor]);
 
@@ -168,14 +191,19 @@ export function ReportesPage() {
 
           <div className="space-y-2">
             <Label>Institución</Label>
-            <Select value={institucion} onValueChange={(value: InstitucionFilter) => setInstitucion(value)}>
+            <Select value={institucion} onValueChange={(value: string) => setInstitucion(value)}>
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Todas" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="todas">Todas</SelectItem>
-                <SelectItem value="ICES">ICES</SelectItem>
-                <SelectItem value="UCSE">UCSE</SelectItem>
+                {filterInstitutions.map((inst) => (
+                  <SelectItem key={inst} value={inst}>
+                    {['ices', 'ucse', 'otro_convenio'].includes(inst)
+                      ? inst.replace('_', ' ').toUpperCase()
+                      : inst}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

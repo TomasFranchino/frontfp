@@ -36,22 +36,20 @@ const configuracionSchema = z.object({
   metodo_validacion_ubicacion: z.enum(['gps_o_wifi', 'solo_wifi', 'solo_gps'], {
     error: 'Seleccioná un método de validación.',
   }),
-  latitud_campus: z.coerce
-    .number()
+  latitud_campus: z.coerce.number()
     .min(-90, 'La latitud debe estar entre -90 y 90.')
     .max(90, 'La latitud debe estar entre -90 y 90.'),
-  longitud_campus: z.coerce
-    .number()
+  longitud_campus: z.coerce.number()
     .min(-180, 'La longitud debe estar entre -180 y 180.')
     .max(180, 'La longitud debe estar entre -180 y 180.'),
-  radio_gps_metros: z.coerce
-    .number()
+  radio_gps_metros: z.coerce.number()
     .int('El radio debe ser un número entero.')
     .min(50, 'El radio mínimo es 50 metros.')
     .max(5000, 'El radio máximo es 5000 metros.'),
 });
 
-type ConfiguracionFormValues = z.infer<typeof configuracionSchema>;
+type ConfiguracionFormValues = z.output<typeof configuracionSchema>;
+type ConfiguracionFormInput = z.input<typeof configuracionSchema>;
 
 function toNumber(value: number | string | null | undefined, fallback: number) {
   if (value === null || value === undefined || value === '') {
@@ -92,8 +90,8 @@ export function ConfiguracionPage() {
     queryFn: fetchConfiguracion,
   });
 
-  const form = useForm<ConfiguracionFormValues>({
-    resolver: zodResolver(configuracionSchema) as any,
+  const form = useForm<ConfiguracionFormInput, unknown, ConfiguracionFormValues>({
+    resolver: zodResolver(configuracionSchema),
     defaultValues: {
       dia_corte_mensual: 20,
       red_wifi_campus: '',
@@ -120,9 +118,9 @@ export function ConfiguracionPage() {
     }
   }, [configuracion, form]);
 
-  const latitud = form.watch('latitud_campus');
-  const longitud = form.watch('longitud_campus');
-  const radioGps = form.watch('radio_gps_metros');
+  const latitud = Number(form.watch('latitud_campus'));
+  const longitud = Number(form.watch('longitud_campus'));
+  const radioGps = Number(form.watch('radio_gps_metros') || 150);
 
   const mapUrl = useMemo(() => {
     if (!Number.isFinite(latitud) || !Number.isFinite(longitud)) {
@@ -180,7 +178,7 @@ export function ConfiguracionPage() {
         ) : isError ? (
           <div className="text-sm text-destructive">Ocurrió un error al cargar la configuración.</div>
         ) : (
-          <form onSubmit={form.handleSubmit(onSubmit as any)} className="max-w-2xl space-y-8">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="max-w-2xl space-y-8">
             <div className="space-y-5">
               <div>
                 <h2 className="text-lg font-semibold text-primary">Parámetros generales</h2>

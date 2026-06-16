@@ -62,7 +62,7 @@ export default function CalendarioPage() {
   });
 
   const form = useForm<EventoFormValues>({
-    resolver: zodResolver(eventoSchema) as any,
+    resolver: zodResolver(eventoSchema),
     defaultValues: {
       fecha: undefined,
       descripcion: '',
@@ -175,7 +175,7 @@ export default function CalendarioPage() {
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-4 py-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
             <div className="space-y-2">
               <Label>Fecha</Label>
               <Popover>

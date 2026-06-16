@@ -42,7 +42,8 @@ const asincronicaSchema = z.object({
   path: ["fecha_dictado"]
 });
 
-type AsincronicaValues = z.infer<typeof asincronicaSchema>;
+type AsincronicaValues = z.output<typeof asincronicaSchema>;
+type AsincronicaInput = z.input<typeof asincronicaSchema>;
 
 export function DeclararAsincronicaPage() {
   const navigate = useNavigate();
@@ -59,8 +60,8 @@ export function DeclararAsincronicaPage() {
     return getLocalDateString(d);
   }, []);
 
-  const form = useForm<AsincronicaValues>({
-    resolver: zodResolver(asincronicaSchema) as any,
+  const form = useForm<AsincronicaInput, unknown, AsincronicaValues>({
+    resolver: zodResolver(asincronicaSchema),
     defaultValues: {
       slot_horario_id: 0,
       fecha_dictado: getLocalDateString(), // Hoy en AAAA-MM-DD
@@ -95,6 +96,8 @@ export function DeclararAsincronicaPage() {
     submitMutation.mutate(values);
   };
 
+  const selectedSlotId = Number(form.watch('slot_horario_id') || 0);
+
   return (
     <div className="mx-auto max-w-md space-y-6">
       <header className="flex items-center gap-4">
@@ -108,7 +111,7 @@ export function DeclararAsincronicaPage() {
       </header>
 
       <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
-        <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-6">
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
           <div className="space-y-3">
             <Label className="text-base" htmlFor="slot_horario_id">Clase del Día</Label>
             {isLoading ? (
@@ -119,7 +122,7 @@ export function DeclararAsincronicaPage() {
               </div>
             ) : (
               <Select
-                value={form.watch('slot_horario_id') ? form.watch('slot_horario_id').toString() : ''}
+                value={selectedSlotId ? selectedSlotId.toString() : ''}
                 onValueChange={(val) => form.setValue('slot_horario_id', Number(val))}
               >
                 <SelectTrigger className="h-10 w-full rounded-lg text-sm bg-background">

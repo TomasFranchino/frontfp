@@ -29,13 +29,14 @@ const emergenciaSchema = z.object({
   fecha: z.string().min(1, 'La fecha es obligatoria.'),
 });
 
-type EmergenciaValues = z.infer<typeof emergenciaSchema>;
+type EmergenciaValues = z.output<typeof emergenciaSchema>;
+type EmergenciaInput = z.input<typeof emergenciaSchema>;
 
 export function EmergenciaFormPage() {
   const navigate = useNavigate();
 
-  const form = useForm<EmergenciaValues>({
-    resolver: zodResolver(emergenciaSchema) as any,
+  const form = useForm<EmergenciaInput, unknown, EmergenciaValues>({
+    resolver: zodResolver(emergenciaSchema),
     defaultValues: {
       slot_horario_id: 0,
       nota_docente: '',
@@ -88,7 +89,7 @@ export function EmergenciaFormPage() {
       </header>
 
       <div className="rounded-2xl border border-destructive/20 bg-destructive/5 p-6 shadow-sm">
-        <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-6">
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
           <div className="space-y-3">
             <Label className="text-base" htmlFor="fecha">Fecha de la Ausencia / Incidencia</Label>
             <Input

@@ -90,7 +90,7 @@ export function EmergenciasPage() {
   });
 
   const form = useForm<ResolverEmergenciaFormValues>({
-    resolver: zodResolver(resolverEmergenciaSchema) as any,
+    resolver: zodResolver(resolverEmergenciaSchema),
     defaultValues: {
       nota_secretaria: '',
     },
@@ -298,7 +298,7 @@ export function EmergenciasPage() {
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-4 py-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="nota_secretaria">Nota de Secretaría</Label>
               <Textarea

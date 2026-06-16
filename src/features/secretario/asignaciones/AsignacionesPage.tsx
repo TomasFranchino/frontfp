@@ -62,7 +62,8 @@ const asignacionSchema = z.object({
   fecha_fin: z.string().optional(),
 });
 
-type AsignacionFormValues = z.infer<typeof asignacionSchema>;
+type AsignacionFormValues = z.output<typeof asignacionSchema>;
+type AsignacionFormInput = z.input<typeof asignacionSchema>;
 
 async function fetchAsignaciones(): Promise<Asignacion[]> {
   const { data } = await api.get<Asignacion[]>('/asignaciones/');
@@ -181,8 +182,8 @@ export function AsignacionesPage() {
     });
   }, [asignaciones, docentes, docentesById, materiasById]);
 
-  const form = useForm<AsignacionFormValues>({
-    resolver: zodResolver(asignacionSchema) as any,
+  const form = useForm<AsignacionFormInput, unknown, AsignacionFormValues>({
+    resolver: zodResolver(asignacionSchema),
     defaultValues: {
       docente_id: 0,
       materia_id: 0,
@@ -436,7 +437,7 @@ export function AsignacionesPage() {
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-4 py-4 px-4">{/* P-4 */}
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4 px-4">{/* P-4 */}
             <div className="space-y-2">
               <Label>Docente</Label>
               <Select

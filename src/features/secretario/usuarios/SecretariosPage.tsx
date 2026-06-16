@@ -100,8 +100,8 @@ function SecretarioEstadoButton({
 }: SecretarioEstadoButtonProps) {
   const [isHovered, setIsHovered] = useState(false);
 
-  let label = '';
-  let className = '';
+  let label: string;
+  let className: string;
 
   if (bloqueadoPorCuentaPropia) {
     label = 'Tu cuenta';
@@ -154,7 +154,7 @@ export default function SecretariosPage() {
   });
 
   const form = useForm<UsuarioFormValues>({
-    resolver: zodResolver(usuarioFormSchema) as any,
+    resolver: zodResolver(usuarioFormSchema),
     defaultValues: {
       username: '',
       first_name: '',
@@ -355,7 +355,7 @@ export default function SecretariosPage() {
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-4 py-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="username">DNI / Usuario</Label>
               <Input id="username" {...form.register('username')} placeholder="Ej: 30123456" />

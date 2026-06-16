@@ -56,7 +56,8 @@ const slotSchema = z
     path: ['hora_fin'],
   });
 
-type SlotFormValues = z.infer<typeof slotSchema>;
+type SlotFormValues = z.output<typeof slotSchema>;
+type SlotFormInput = z.input<typeof slotSchema>;
 
 async function fetchSlots(): Promise<SlotHorario[]> {
   const { data } = await api.get<SlotHorario[]>('/academico/slots');
@@ -114,8 +115,8 @@ export function MateriaHorariosTab({ materiaId }: MateriaHorariosTabProps) {
       return a.hora_inicio.localeCompare(b.hora_inicio);
     });
 
-  const form = useForm<SlotFormValues>({
-    resolver: zodResolver(slotSchema) as any,
+  const form = useForm<SlotFormInput, unknown, SlotFormValues>({
+    resolver: zodResolver(slotSchema),
     defaultValues: {
       dia_semana: 0,
       hora_inicio: '08:00',
@@ -276,7 +277,7 @@ export function MateriaHorariosTab({ materiaId }: MateriaHorariosTabProps) {
             </SheetDescription>
           </SheetHeader>
 
-          <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-4 px-4 sm:px-6 py-6">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 px-4 sm:px-6 py-6">
             <div className="space-y-2">
               <Label>Día de la semana</Label>
               <Select

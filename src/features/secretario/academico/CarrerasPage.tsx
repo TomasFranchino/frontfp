@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { toast } from 'sonner';
 
 import api from '@/lib/api';
@@ -19,20 +19,21 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 
 export type Carrera = {
   id: number;
-  institucion: 'ices' | 'ucse' | 'otro_convenio';
+  institucion: string;
   codigo: string;
   nombre: string;
   duracion_anios: number;
 };
 
 const carreraSchema = z.object({
-  institucion: z.enum(['ices', 'ucse', 'otro_convenio']),
+  institucion: z.string().min(1, 'La institución es obligatoria.'),
   codigo: z.string().min(1, 'El código es obligatorio.'),
   nombre: z.string().min(1, 'El nombre es obligatorio.'),
   duracion_anios: z.coerce.number().min(1, 'Debe ser al menos 1.'),
 });
 
-type CarreraFormValues = z.infer<typeof carreraSchema>;
+type CarreraFormValues = z.output<typeof carreraSchema>;
+type CarreraFormInput = z.input<typeof carreraSchema>;
 
 // --- API ACTIONS ---
 
@@ -61,11 +62,29 @@ export function CarrerasPage() {
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCarrera, setEditingCarrera] = useState<Carrera | null>(null);
+  const [showCustomInput, setShowCustomInput] = useState(false);
+
+  const defaultInstitutions = useMemo(() => [
+    { value: 'ices', label: 'ICES' },
+    { value: 'ucse', label: 'UCSE' },
+    { value: 'otro_convenio', label: 'Otro Convenio' },
+  ], []);
 
   const { data: carreras, isLoading, isError } = useQuery({
     queryKey: ['academico', 'carreras'],
     queryFn: fetchCarreras,
   });
+
+  const dynamicInstitutions = useMemo(() => {
+    if (!carreras) return defaultInstitutions;
+    const unique = Array.from(new Set(carreras.map((c) => c.institucion)))
+      .filter((inst) => inst && !['ices', 'ucse', 'otro_convenio'].includes(inst));
+    
+    return [
+      ...defaultInstitutions,
+      ...unique.map((inst) => ({ value: inst, label: inst })),
+    ];
+  }, [carreras, defaultInstitutions]);
 
   const createMutation = useMutation({
     mutationFn: createCarrera,
@@ -93,8 +112,8 @@ export function CarrerasPage() {
     },
   });
 
-  const form = useForm<CarreraFormValues>({
-    resolver: zodResolver(carreraSchema) as any,
+  const form = useForm<CarreraFormInput, unknown, CarreraFormValues>({
+    resolver: zodResolver(carreraSchema),
     defaultValues: {
       institucion: 'ices',
       codigo: '',
@@ -106,6 +125,7 @@ export function CarrerasPage() {
   const handleOpenNew = () => {
     setEditingCarrera(null);
     form.reset({ institucion: 'ices', codigo: '', nombre: '', duracion_anios: 1 });
+    setShowCustomInput(false);
     setIsModalOpen(true);
   };
 
@@ -117,6 +137,7 @@ export function CarrerasPage() {
       nombre: carrera.nombre,
       duracion_anios: carrera.duracion_anios,
     });
+    setShowCustomInput(false);
     setIsModalOpen(true);
   };
 
@@ -178,7 +199,9 @@ export function CarrerasPage() {
                 <TableRow key={carrera.id}>
                   <TableCell className="font-medium text-primary">{carrera.codigo}</TableCell>
                   <TableCell>{carrera.nombre}</TableCell>
-                  <TableCell className="uppercase">{carrera.institucion.replace('_', ' ')}</TableCell>
+                  <TableCell className={['ices', 'ucse', 'otro_convenio'].includes(carrera.institucion) ? "uppercase" : ""}>
+                    {carrera.institucion.replace('_', ' ')}
+                  </TableCell>
                   <TableCell className="text-right">{carrera.duracion_anios} años</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
@@ -216,26 +239,48 @@ export function CarrerasPage() {
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-4 py-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="institucion">Institución</Label>
               <Select
-                value={form.watch('institucion')}
-                onValueChange={(val: 'ices' | 'ucse' | 'otro_convenio') => form.setValue('institucion', val)}
+                value={showCustomInput ? 'otro' : form.watch('institucion')}
+                onValueChange={(val: string) => {
+                  if (val === 'otro') {
+                    setShowCustomInput(true);
+                    form.setValue('institucion', '');
+                  } else {
+                    setShowCustomInput(false);
+                    form.setValue('institucion', val);
+                  }
+                }}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Seleccioná una institución" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ices">ICES</SelectItem>
-                  <SelectItem value="ucse">UCSE</SelectItem>
-                  <SelectItem value="otro_convenio">Otro Convenio</SelectItem>
+                  {dynamicInstitutions.map((inst) => (
+                    <SelectItem key={inst.value} value={inst.value}>
+                      {inst.label}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value="otro">Otro (especificar)...</SelectItem>
                 </SelectContent>
               </Select>
               {form.formState.errors.institucion && (
                 <p className="text-xs text-destructive">{form.formState.errors.institucion.message}</p>
               )}
             </div>
+
+            {showCustomInput && (
+              <div className="space-y-2">
+                <Label htmlFor="custom_institucion">Nombre de la Institución</Label>
+                <Input
+                  id="custom_institucion"
+                  placeholder="Ej: Curso IA UNL"
+                  {...form.register('institucion')}
+                />
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="codigo">Código</Label>
