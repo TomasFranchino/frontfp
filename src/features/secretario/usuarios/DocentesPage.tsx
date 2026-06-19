@@ -8,7 +8,9 @@ import { Pencil, Plus, Search, X, Users, ArrowRight, BookX } from 'lucide-react'
 import { toast } from 'sonner';
 
 import api from '@/lib/api';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -30,6 +32,7 @@ const usuarioFormSchema = z
     last_name: z.string().min(1, 'El apellido es obligatorio.'),
     email: z.string().email('Ingresá un email válido.'),
     password: z.string().optional(),
+    activo: z.boolean().optional(),
   })
   .superRefine((values, ctx) => {
     if (!values.password?.trim()) {
@@ -109,63 +112,6 @@ async function updateDocente({
 }): Promise<MensajeOut> {
   const { data } = await api.put<MensajeOut>(`/auth/docentes/${id}`, payload);
   return data;
-}
-
-async function toggleDocenteEstado({
-  id,
-  activo,
-}: {
-  id: number;
-  activo: boolean;
-}): Promise<MensajeOut> {
-  const { data } = await api.patch<MensajeOut>(`/auth/docentes/${id}/estado`, { activo });
-  return data;
-}
-interface DocenteEstadoButtonProps {
-  activo: boolean;
-  pending: boolean;
-  onClick: () => void;
-}
-
-function DocenteEstadoButton({ activo, pending, onClick }: DocenteEstadoButtonProps) {
-  const [isHovered, setIsHovered] = useState(false);
-
-  let label: string;
-  let className: string;
-
-  if (pending) {
-    label = 'Cargando...';
-    className = 'border-border bg-muted/50 text-muted-foreground/50 cursor-not-allowed';
-  } else if (activo) {
-    if (isHovered) {
-      label = 'Desactivar';
-      className = 'border-border bg-muted text-muted-foreground shadow-sm cursor-pointer';
-    } else {
-      label = 'Activo';
-      className = 'border-green-200 bg-green-100 text-green-700 shadow-sm';
-    }
-  } else {
-    if (isHovered) {
-      label = 'Activar';
-      className = 'border-green-200 bg-green-100 text-green-700 shadow-sm cursor-pointer';
-    } else {
-      label = 'Inactivo';
-      className = 'border-border bg-muted text-muted-foreground shadow-sm';
-    }
-  }
-
-  return (
-    <button
-      type="button"
-      disabled={pending}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      onClick={onClick}
-      className={`inline-flex items-center justify-center rounded-full px-3 py-1 text-xs font-semibold border transition-all duration-200 min-w-[90px] h-7 ${className}`}
-    >
-      {label}
-    </button>
-  );
 }
 
 function DocenteAsignacionesModal({
@@ -315,6 +261,7 @@ export default function DocentesPage() {
       last_name: '',
       email: '',
       password: '',
+      activo: true,
     },
   });
 
@@ -336,14 +283,6 @@ export default function DocentesPage() {
     },
   });
 
-  const estadoMutation = useMutation({
-    mutationFn: toggleDocenteEstado,
-    onSuccess: (data) => {
-      toast.success(getBackendMessage(data, 'Estado actualizado correctamente.'));
-      queryClient.invalidateQueries({ queryKey: ['docentes'] });
-    },
-  });
-
   const handleOpenCreate = () => {
     setEditingDocente(null);
     form.reset({
@@ -352,6 +291,7 @@ export default function DocentesPage() {
       last_name: '',
       email: '',
       password: '',
+      activo: true,
     });
     setIsDialogOpen(true);
   };
@@ -364,6 +304,7 @@ export default function DocentesPage() {
       last_name: docente.user.last_name,
       email: docente.user.email,
       password: '',
+      activo: docente.activo,
     });
     setIsDialogOpen(true);
   };
@@ -381,6 +322,7 @@ export default function DocentesPage() {
         first_name: values.first_name,
         last_name: values.last_name,
         email: values.email,
+        activo: values.activo,
       };
 
       if (values.password?.trim()) {
@@ -504,24 +446,42 @@ export default function DocentesPage() {
               {filteredDocentes.map((docente) => (
                 <TableRow
                   className="cursor-pointer hover:bg-muted/50"
-                  key={docente.id}
-                  onClick={() => setViewingDocenteAsignaciones(docente)}>
+                  key={docente.id}>
                   <TableCell className="font-medium text-primary">{docente.user.username}</TableCell>
                   <TableCell>{formatNombreCompleto(docente.user)}</TableCell>
                   <TableCell>{docente.user.email}</TableCell>
                   <TableCell className="text-center">
-                    <DocenteEstadoButton
-                      activo={docente.activo}
-                      pending={estadoMutation.isPending}
-                      onClick={() => estadoMutation.mutate({ id: docente.id, activo: !docente.activo })}
-                    />
+                    <Badge
+                      variant="secondary"
+                      className={
+                        docente.activo
+                          ? 'border-green-200 bg-green-100 text-green-700 hover:bg-green-100'
+                          : 'border-border bg-muted text-muted-foreground hover:bg-muted'
+                      }
+                    >
+                      {docente.activo ? 'Activo' : 'Inactivo'}
+                    </Badge>
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => handleOpenEdit(docente)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setViewingDocenteAsignaciones(docente);
+                        }}
+                        aria-label="Ver asignaciones"
+                        title="Ver asignaciones">
+                        <BookX className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenEdit(docente);
+                        }}
                         aria-label="Editar docente"
                         title="Editar datos"
                       >
@@ -597,6 +557,21 @@ export default function DocentesPage() {
                 <p className="text-xs text-destructive">{form.formState.errors.password.message}</p>
               ) : null}
             </div>
+
+            {editingDocente ? (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2">
+                  <Checkbox
+                    id="activo"
+                    checked={form.watch('activo')}
+                    onCheckedChange={(value) => form.setValue('activo', value === true)}
+                  />
+                  <Label htmlFor="activo" className="cursor-pointer font-normal">
+                    Docente activo (desmarcá para dejar inactivo sin borrar el registro)
+                  </Label>
+                </div>
+              </div>
+            ) : null}
 
             <div className="flex justify-end gap-2 pt-4">
               <Button type="button" variant="outline" onClick={handleCloseDialog}>

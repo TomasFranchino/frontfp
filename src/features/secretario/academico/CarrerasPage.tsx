@@ -67,7 +67,6 @@ export function CarrerasPage() {
   const defaultInstitutions = useMemo(() => [
     { value: 'ices', label: 'ICES' },
     { value: 'ucse', label: 'UCSE' },
-    { value: 'otro_convenio', label: 'Otro Convenio' },
   ], []);
 
   const { data: carreras, isLoading, isError } = useQuery({
@@ -79,7 +78,7 @@ export function CarrerasPage() {
     if (!carreras) return defaultInstitutions;
     const unique = Array.from(new Set(carreras.map((c) => c.institucion)))
       .filter((inst) => inst && !['ices', 'ucse', 'otro_convenio'].includes(inst));
-    
+
     return [
       ...defaultInstitutions,
       ...unique.map((inst) => ({ value: inst, label: inst })),

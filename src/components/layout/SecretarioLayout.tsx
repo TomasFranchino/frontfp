@@ -174,7 +174,7 @@ export function SecretarioLayout() {
       </aside>
 
       <div className="flex min-h-screen w-full flex-col lg:pl-80">
-        <header className="sticky top-0 z-30 border-b border-white/10 bg-[#162839]/95 backdrop-blur">
+        <header className="sticky top-0 z-30 border-white/10 bg-[#162839]/95 backdrop-blur">
           <div className="flex h-20 items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
             <div className="flex items-center gap-4">
               <Button
@@ -186,7 +186,7 @@ export function SecretarioLayout() {
                 <Menu className="h-6 w-6" />
               </Button>
               <div>
-                <p className="text-sm font-medium text-[#b5c8df]">Secretaría</p>
+                <p className="text-sm font-medium text-[#b5c8df]">Alumnado</p>
                 <h1 className="text-lg font-semibold text-white">Panel institucional</h1>
               </div>
             </div>

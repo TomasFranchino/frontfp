@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Pencil, Trash2, Library, Search, X } from 'lucide-react';
+import { Plus, Pencil, Library, Search, X, CalendarX2, Info } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
@@ -33,6 +33,7 @@ export type Materia = {
   anio: number;
   activa: boolean;
   carreras: CarreraResumen[];
+  desactivada_en: string | null;
 };
 
 type Carrera = {
@@ -76,19 +77,17 @@ async function updateMateria({ id, payload }: { id: number; payload: MateriaForm
   return data;
 }
 
-async function deleteMateria(id: number): Promise<void> {
-  await api.delete(`/academico/materias/${id}`);
-}
+
 
 export function MateriasPage() {
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingMateria, setEditingMateria] = useState<Materia | null>(null);
-  
+
   const [searchTerm, setSearchTerm] = useState('');
   const [carreraFilter, setCarreraFilter] = useState('Todas');
   const [estadoFilter, setEstadoFilter] = useState('Todas');
-  
+
   const navigate = useNavigate();
 
   const { data: materias, isLoading, isError } = useQuery({
@@ -103,19 +102,19 @@ export function MateriasPage() {
 
   const filteredMaterias = useMemo(() => {
     if (!materias) return [];
-    
+
     return materias.filter((materia) => {
-      const matchesSearch = searchTerm === '' || 
+      const matchesSearch = searchTerm === '' ||
         materia.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
         materia.codigo_siu.toLowerCase().includes(searchTerm.toLowerCase());
-        
-      const matchesCarrera = carreraFilter === 'Todas' || 
+
+      const matchesCarrera = carreraFilter === 'Todas' ||
         materia.carreras.some(c => c.id.toString() === carreraFilter);
-        
-      const matchesEstado = estadoFilter === 'Todas' || 
+
+      const matchesEstado = estadoFilter === 'Todas' ||
         (estadoFilter === 'Activas' && materia.activa) ||
         (estadoFilter === 'Inactivas' && !materia.activa);
-        
+
       return matchesSearch && matchesCarrera && matchesEstado;
     });
   }, [materias, searchTerm, carreraFilter, estadoFilter]);
@@ -138,13 +137,7 @@ export function MateriasPage() {
     },
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: deleteMateria,
-    onSuccess: () => {
-      toast.success('Materia desactivada correctamente.');
-      queryClient.invalidateQueries({ queryKey: ['academico', 'materias'] });
-    },
-  });
+
 
   const form = useForm<MateriaFormInput, unknown, MateriaFormValues>({
     resolver: zodResolver(materiaSchema),
@@ -227,14 +220,14 @@ export function MateriasPage() {
       <div className="flex flex-col gap-4 md:flex-row md:items-center bg-card p-4 rounded-lg border shadow-sm">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input 
-            placeholder="Buscar por nombre o código SIU..." 
-            value={searchTerm} 
+          <Input
+            placeholder="Buscar por nombre o código SIU..."
+            value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-9"
           />
         </div>
-        
+
         <Select value={carreraFilter} onValueChange={setCarreraFilter}>
           <SelectTrigger className="w-[200px]">
             <SelectValue placeholder="Carrera" />
@@ -259,8 +252,8 @@ export function MateriasPage() {
         </Select>
 
         {(searchTerm !== '' || carreraFilter !== 'Todas' || estadoFilter !== 'Todas') && (
-          <Button 
-            variant="ghost" 
+          <Button
+            variant="ghost"
             onClick={() => {
               setSearchTerm('');
               setCarreraFilter('Todas');
@@ -319,8 +312,8 @@ export function MateriasPage() {
             </TableHeader>
             <TableBody>
               {filteredMaterias.map((materia) => (
-                <TableRow 
-                  key={materia.id} 
+                <TableRow
+                  key={materia.id}
                   className={cn("cursor-pointer hover:bg-muted/50 transition-colors", !materia.activa ? 'opacity-75' : undefined)}
                   onClick={() => navigate(`/secretario/materias/${materia.id}`)}
                 >
@@ -349,7 +342,14 @@ export function MateriasPage() {
                           : 'border-border bg-muted text-muted-foreground hover:bg-muted'
                       }
                     >
-                      {materia.activa ? 'Activa' : 'Inactiva'}
+                      {materia.activa ? 'Activa' : (
+                        <span className="flex items-center gap-1">
+                          <CalendarX2 className="h-3 w-3" />
+                          {materia.desactivada_en
+                            ? `Inactiva desde ${new Date(materia.desactivada_en + 'T12:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })}`
+                            : 'Inactiva'}
+                        </span>
+                      )}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
@@ -357,23 +357,6 @@ export function MateriasPage() {
                       <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleOpenEdit(materia); }} aria-label="Editar">
                         <Pencil className="h-4 w-4" />
                       </Button>
-                      {materia.activa ? (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                          disabled={deleteMutation.isPending}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (confirm('¿Desactivar esta materia? Podrás reactivarla desde Editar.')) {
-                              deleteMutation.mutate(materia.id);
-                            }
-                          }}
-                          aria-label="Desactivar"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      ) : null}
                     </div>
                   </TableCell>
                 </TableRow>
@@ -457,15 +440,28 @@ export function MateriasPage() {
             </div>
 
             {editingMateria ? (
-              <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2">
-                <Checkbox
-                  id="activa"
-                  checked={form.watch('activa')}
-                  onCheckedChange={(value) => form.setValue('activa', value === true)}
-                />
-                <Label htmlFor="activa" className="cursor-pointer font-normal">
-                  Materia activa (desmarcá para dejar inactiva sin borrar el registro)
-                </Label>
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2">
+                  <Checkbox
+                    id="activa"
+                    checked={form.watch('activa')}
+                    onCheckedChange={(value) => form.setValue('activa', value === true)}
+                  />
+                  <Label htmlFor="activa" className="cursor-pointer font-normal">
+                    Materia activa (desmarcá para dejar inactiva sin borrar el registro)
+                  </Label>
+                </div>
+                {!editingMateria.activa && form.watch('activa') ? (
+                  <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-300">
+                    <Info className="h-4 w-4 mt-0.5 shrink-0" />
+                    <span>Al reactivar, los horarios anteriores se restaurarán automáticamente con vigencia desde hoy. Las asignaciones de docentes deberán reasignarse manualmente.</span>
+                  </div>
+                ) : null}
+                {editingMateria.desactivada_en && !editingMateria.activa ? (
+                  <p className="text-xs text-muted-foreground">
+                    Desactivada desde el {new Date(editingMateria.desactivada_en + 'T12:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                  </p>
+                ) : null}
               </div>
             ) : null}
 

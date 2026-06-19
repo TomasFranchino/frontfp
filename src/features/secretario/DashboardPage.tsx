@@ -190,7 +190,7 @@ export function SecretarioDashboardPage() {
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-1.5">
               <GraduationCap className="h-4 w-4 text-primary" />
-              Secretaría Académica
+              Alumnado
             </p>
             <h2 className="mt-2 text-3xl font-semibold text-primary tracking-tight">
               Bienvenido{user ? `, ${user.first_name} ${user.last_name}` : ''}.
@@ -198,13 +198,6 @@ export function SecretarioDashboardPage() {
             <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
               Monitoreá el dictado de clases en tiempo real, resolvé incidencias técnicas de fichaje al instante y accedé a la configuración global del campus.
             </p>
-          </div>
-          <div className="flex items-center gap-2 rounded-xl bg-muted/50 px-3 py-1.5 text-xs font-medium text-muted-foreground self-start md:self-auto border border-border/40">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-            </span>
-            Monitoreo en vivo activo
           </div>
         </div>
       </section>

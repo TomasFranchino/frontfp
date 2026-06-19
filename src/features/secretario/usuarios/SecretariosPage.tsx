@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Pencil, Plus } from 'lucide-react';
+import { Pencil, Plus, Search, X, Users } from 'lucide-react';
 import { toast } from 'sonner';
 
 import api from '@/lib/api';
@@ -13,7 +13,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { EmptyState } from '@/components/ui/empty-state';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
   type MensajeOut,
@@ -144,14 +145,33 @@ function SecretarioEstadoButton({
 export default function SecretariosPage() {
   const { user: currentUser } = useAuth();
   const queryClient = useQueryClient();
-  const [incluirInactivos, setIncluirInactivos] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingSecretario, setEditingSecretario] = useState<SecretarioOut | null>(null);
 
+  const [searchTerm, setSearchTerm] = useState('');
+  const [estadoFilter, setEstadoFilter] = useState('Todos');
+
   const { data: secretarios, isLoading, isError } = useQuery({
-    queryKey: ['secretarios', { incluirInactivos }],
-    queryFn: () => fetchSecretarios(incluirInactivos),
+    queryKey: ['secretarios'],
+    queryFn: () => fetchSecretarios(true),
   });
+
+  const filteredSecretarios = useMemo(() => {
+    if (!secretarios) return [];
+
+    return secretarios.filter((secretario) => {
+      const matchesSearch = searchTerm === '' ||
+        secretario.user.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        secretario.user.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        secretario.user.username.toLowerCase().includes(searchTerm.toLowerCase());
+
+      const matchesEstado = estadoFilter === 'Todos' ||
+        (estadoFilter === 'Activos' && secretario.activo) ||
+        (estadoFilter === 'Inactivos' && !secretario.activo);
+
+      return matchesSearch && matchesEstado;
+    });
+  }, [secretarios, searchTerm, estadoFilter]);
 
   const form = useForm<UsuarioFormValues>({
     resolver: zodResolver(usuarioFormSchema),
@@ -261,22 +281,48 @@ export default function SecretariosPage() {
         </div>
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2">
-            <Switch
-              id="incluir-inactivos-secretarios"
-              checked={incluirInactivos}
-              onCheckedChange={setIncluirInactivos}
-            />
-            <Label htmlFor="incluir-inactivos-secretarios" className="cursor-pointer font-normal">
-              Incluir inactivos
-            </Label>
-          </div>
-
           <Button onClick={handleOpenCreate} className="shrink-0 gap-2">
             <Plus className="h-4 w-4" />
             Nuevo Secretario
           </Button>
         </div>
+      </div>
+
+      <div className="flex flex-col gap-4 md:flex-row md:items-center bg-card p-4 rounded-lg border shadow-sm">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por nombre, apellido o DNI..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+
+        <Select value={estadoFilter} onValueChange={setEstadoFilter}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Estado" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="Todos">Todos los estados</SelectItem>
+            <SelectItem value="Activos">Activos</SelectItem>
+            <SelectItem value="Inactivos">Inactivos</SelectItem>
+          </SelectContent>
+        </Select>
+
+        {(searchTerm !== '' || estadoFilter !== 'Todos') && (
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setSearchTerm('');
+              setEstadoFilter('Todos');
+            }}
+            className="px-2"
+          >
+            <X className="h-4 w-4 mr-2" />
+            Limpiar
+          </Button>
+        )}
       </div>
 
       <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
@@ -289,9 +335,26 @@ export default function SecretariosPage() {
         ) : isError ? (
           <div className="p-6 text-center text-destructive">Ocurrió un error al cargar los secretarios.</div>
         ) : !secretarios || secretarios.length === 0 ? (
-          <div className="p-10 text-center text-muted-foreground">
-            No hay secretarios para mostrar con el filtro actual.
-          </div>
+          <EmptyState
+            icon={Users}
+            title="Sin secretarios registrados"
+            description="No hay secretarios cargados en el sistema. Empezá por registrar uno nuevo."
+            actionLabel="Nuevo Secretario"
+            actionIcon={Plus}
+            onAction={handleOpenCreate}
+          />
+        ) : filteredSecretarios.length === 0 ? (
+          <EmptyState
+            icon={Users}
+            title="No se encontraron secretarios"
+            description="No hay resultados que coincidan con los filtros de búsqueda."
+            actionLabel="Limpiar filtros"
+            actionIcon={X}
+            onAction={() => {
+              setSearchTerm('');
+              setEstadoFilter('Todos');
+            }}
+          />
         ) : (
           <Table>
             <TableHeader>
@@ -304,7 +367,7 @@ export default function SecretariosPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {secretarios.map((secretario) => {
+              {filteredSecretarios.map((secretario) => {
                 const isCurrentUser = currentUser?.id === secretario.user.id;
 
                 return (

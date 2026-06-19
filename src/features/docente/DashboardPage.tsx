@@ -476,7 +476,7 @@ export function DocenteDashboardPage() {
           <Card className="border-dashed border-2 border-border bg-card/50 shadow-none">
             <CardHeader className="text-center py-6">
               <CardTitle className="text-lg font-medium text-muted-foreground">No tenés materias asignadas activas</CardTitle>
-              <CardDescription>Si esto es un error, comunicate con la secretaría académica.</CardDescription>
+              <CardDescription>Si esto es un error, comunicate con alumnado.</CardDescription>
             </CardHeader>
           </Card>
         )}

@@ -16,7 +16,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 type Configuracion = {
   id?: number | null;
-  dia_corte_mensual?: number | null;
   red_wifi_campus?: string | null;
   metodo_validacion_ubicacion?: string | null;
   latitud_campus?: number | string | null;
@@ -31,7 +30,6 @@ const METODOS_VALIDACION = [
 ] as const;
 
 const configuracionSchema = z.object({
-  dia_corte_mensual: z.coerce.number().min(1, 'Debe ser entre 1 y 31.').max(31, 'Debe ser entre 1 y 31.'),
   red_wifi_campus: z.string().max(100, 'No puede superar 100 caracteres.').optional(),
   metodo_validacion_ubicacion: z.enum(['gps_o_wifi', 'solo_wifi', 'solo_gps'], {
     error: 'Seleccioná un método de validación.',
@@ -66,7 +64,6 @@ async function fetchConfiguracion(): Promise<Configuracion> {
 
 async function updateConfiguracion(payload: ConfiguracionFormValues): Promise<Configuracion> {
   const { data } = await api.patch<Configuracion>('/configuracion/', {
-    dia_corte_mensual: payload.dia_corte_mensual,
     red_wifi_campus: payload.red_wifi_campus?.trim() || null,
     metodo_validacion_ubicacion: payload.metodo_validacion_ubicacion,
     latitud_campus: payload.latitud_campus,
@@ -93,7 +90,6 @@ export function ConfiguracionPage() {
   const form = useForm<ConfiguracionFormInput, unknown, ConfiguracionFormValues>({
     resolver: zodResolver(configuracionSchema),
     defaultValues: {
-      dia_corte_mensual: 20,
       red_wifi_campus: '',
       metodo_validacion_ubicacion: 'gps_o_wifi',
       latitud_campus: -30.944598,
@@ -105,7 +101,6 @@ export function ConfiguracionPage() {
   useEffect(() => {
     if (configuracion) {
       form.reset({
-        dia_corte_mensual: configuracion.dia_corte_mensual ?? 20,
         red_wifi_campus: configuracion.red_wifi_campus ?? '',
         metodo_validacion_ubicacion:
           (METODOS_VALIDACION.some((m) => m.value === configuracion.metodo_validacion_ubicacion)
@@ -137,7 +132,6 @@ export function ConfiguracionPage() {
       queryClient.invalidateQueries({ queryKey: ['configuracion'] });
       setSuccessMessage('Configuración actualizada correctamente.');
       form.reset({
-        dia_corte_mensual: data.dia_corte_mensual ?? 20,
         red_wifi_campus: data.red_wifi_campus ?? '',
         metodo_validacion_ubicacion:
           (METODOS_VALIDACION.some((m) => m.value === data.metodo_validacion_ubicacion)
@@ -182,20 +176,12 @@ export function ConfiguracionPage() {
             <div className="space-y-5">
               <div>
                 <h2 className="text-lg font-semibold text-primary">Parámetros generales</h2>
-                <p className="text-sm text-muted-foreground">Corte mensual, red WiFi y método de validación.</p>
+                <p className="text-sm text-muted-foreground">Red WiFi y método de validación.</p>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="dia_corte_mensual">Día de corte mensual</Label>
-                <Input id="dia_corte_mensual" type="number" min={1} max={31} {...form.register('dia_corte_mensual')} />
-                {form.formState.errors.dia_corte_mensual ? (
-                  <p className="text-xs text-destructive">{form.formState.errors.dia_corte_mensual.message}</p>
-                ) : null}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="red_wifi_campus">Red WiFi campus</Label>
-                <Input id="red_wifi_campus" {...form.register('red_wifi_campus')} placeholder="Ej: IP o identificador de red" />
+                <Label htmlFor="red_wifi_campus">IP WiFi del campus</Label>
+                <Input id="red_wifi_campus" {...form.register('red_wifi_campus')} placeholder="Primeros 6 numeros del IP del WiFi del campus. Ej: 192.168." />
                 {form.formState.errors.red_wifi_campus ? (
                   <p className="text-xs text-destructive">{form.formState.errors.red_wifi_campus.message}</p>
                 ) : null}

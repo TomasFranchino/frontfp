@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, GraduationCap, Users, CalendarDays, Info } from 'lucide-react';
+import { ChevronLeft, GraduationCap, Users, CalendarDays, Info, CalendarX2 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 
 import api from '@/lib/api';
@@ -24,6 +24,7 @@ export type Materia = {
   anio: number;
   activa: boolean;
   carreras: CarreraResumen[];
+  desactivada_en: string | null;
 };
 
 // We create a function to fetch the single materia. Note: this endpoint might need to be created in the backend if it doesn't exist,
@@ -95,7 +96,10 @@ export function MateriaDetailPage() {
                   </Badge>
                 ) : (
                   <Badge variant="secondary" className="border-border bg-muted text-muted-foreground font-normal text-xs">
-                    Inactiva
+                    <CalendarX2 className="h-3 w-3 mr-1" />
+                    {materia.desactivada_en
+                      ? `Inactiva desde ${new Date(materia.desactivada_en + 'T12:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })}`
+                      : 'Inactiva'}
                   </Badge>
                 )}
               </div>
@@ -172,7 +176,13 @@ export function MateriaDetailPage() {
                   </div>
                   <div>
                     <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">Estado</p>
-                    <p className="font-medium text-foreground">{materia.activa ? 'Activa' : 'Inactiva'}</p>
+                    <p className="font-medium text-foreground">
+                      {materia.activa ? 'Activa' : (
+                        materia.desactivada_en
+                          ? `Inactiva desde el ${new Date(materia.desactivada_en + 'T12:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })}`
+                          : 'Inactiva'
+                      )}
+                    </p>
                   </div>
                 </div>
               </div>

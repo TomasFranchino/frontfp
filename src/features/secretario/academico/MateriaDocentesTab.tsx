@@ -1,19 +1,20 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, UserMinus, Pencil, UserCircle2 } from 'lucide-react';
+import { Plus, UserMinus, Pencil, UserCircle2, Check, ChevronsUpDown } from 'lucide-react';
 import { toast } from 'sonner';
 
 import api from '@/lib/api';
-import { getLocalDateString } from '@/lib/utils';
+import { getLocalDateString, cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Skeleton } from '@/components/ui/skeleton';
 
 type PerfilUsuario = {
@@ -96,6 +97,7 @@ export function MateriaDocentesTab({ materiaId }: MateriaDocentesTabProps) {
   const queryClient = useQueryClient();
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [editingAsignacion, setEditingAsignacion] = useState<Asignacion | null>(null);
+  const [openDocenteCombobox, setOpenDocenteCombobox] = useState(false);
 
   const { data: asignacionesAll, isLoading: isLoadingAsignaciones } = useQuery({
     queryKey: ['asignaciones'],
@@ -108,6 +110,15 @@ export function MateriaDocentesTab({ materiaId }: MateriaDocentesTabProps) {
   });
 
   const isLoading = isLoadingAsignaciones || isLoadingDocentes;
+
+  const sortedDocentes = useMemo(() => {
+    if (!docentes) return [];
+    return [...docentes].sort((a, b) => {
+      const nameA = getDocenteName(a).toLowerCase();
+      const nameB = getDocenteName(b).toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
+  }, [docentes]);
 
   // Filtrar solo las asignaciones para esta materia
   const asignacionesMateria = (asignacionesAll ?? []).filter(
@@ -293,23 +304,54 @@ export function MateriaDocentesTab({ materiaId }: MateriaDocentesTabProps) {
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 px-4 sm:px-6 py-6">
             <div className="space-y-2">
               <Label>Docente</Label>
-              <Select
-                value={form.watch('docente_id') ? String(form.watch('docente_id')) : ''}
-                onValueChange={(value) => form.setValue('docente_id', Number(value), { shouldValidate: true })}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Seleccioná un docente" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(docentes ?? [])
-                    .filter((docente) => docente.activo || docente.id === form.watch('docente_id'))
-                    .map((docente) => (
-                      <SelectItem key={docente.id} value={String(docente.id)}>
-                        {getDocenteName(docente)}{!docente.activo && ' (Inactivo)'}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
+              <Popover open={openDocenteCombobox} onOpenChange={setOpenDocenteCombobox}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={openDocenteCombobox}
+                    className="w-full justify-between font-normal"
+                  >
+                    {form.watch('docente_id')
+                      ? (() => {
+                          const doc = docentes?.find((d) => d.id === form.watch('docente_id'));
+                          return doc ? `${getDocenteName(doc)}${!doc.activo ? ' (Inactivo)' : ''}` : 'Seleccioná un docente';
+                        })()
+                      : 'Seleccioná un docente'}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Buscar docente..." />
+                    <CommandList>
+                      <CommandEmpty>No se encontró ningún docente.</CommandEmpty>
+                      <CommandGroup>
+                        {sortedDocentes
+                          .filter((docente) => docente.activo || docente.id === form.watch('docente_id'))
+                          .map((docente) => (
+                            <CommandItem
+                              key={docente.id}
+                              value={`${getDocenteName(docente)} ${docente.id}`}
+                              onSelect={() => {
+                                form.setValue('docente_id', docente.id, { shouldValidate: true });
+                                setOpenDocenteCombobox(false);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  'mr-2 h-4 w-4',
+                                  form.watch('docente_id') === docente.id ? 'opacity-100' : 'opacity-0'
+                                )}
+                              />
+                              {getDocenteName(docente)}{!docente.activo && ' (Inactivo)'}
+                            </CommandItem>
+                          ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
               {form.formState.errors.docente_id ? (
                 <p className="text-xs text-destructive">{form.formState.errors.docente_id.message}</p>
               ) : null}

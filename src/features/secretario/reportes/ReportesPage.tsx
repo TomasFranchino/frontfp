@@ -1,13 +1,16 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Download, Eye } from 'lucide-react';
+import { CalendarIcon, Download, Eye } from 'lucide-react';
+import { format, startOfMonth } from 'date-fns';
 import { toast } from 'sonner';
 
 import api from '@/lib/api';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -42,61 +45,49 @@ type ReporteFila = {
 };
 
 type ReportesResponse = {
-  mes: number;
-  anio: number;
+  desde: string;
+  hasta: string;
   institucion: string | null;
   agrupar_por: AgruparPorFilter;
   resultados: ReporteFila[];
 };
 
-const monthOptions = [
-  { value: '1', label: 'Enero' },
-  { value: '2', label: 'Febrero' },
-  { value: '3', label: 'Marzo' },
-  { value: '4', label: 'Abril' },
-  { value: '5', label: 'Mayo' },
-  { value: '6', label: 'Junio' },
-  { value: '7', label: 'Julio' },
-  { value: '8', label: 'Agosto' },
-  { value: '9', label: 'Septiembre' },
-  { value: '10', label: 'Octubre' },
-  { value: '11', label: 'Noviembre' },
-  { value: '12', label: 'Diciembre' },
-];
-
 function normalizeReportes(data: ReportesResponse): ReporteFila[] {
   return data?.resultados ?? [];
 }
 
-function buildReportParams(mes: string, anio: string, institucion: InstitucionFilter, agrupar_por: AgruparPorFilter) {
+function buildReportParams(desde: Date, hasta: Date, institucion: InstitucionFilter, agrupar_por: AgruparPorFilter) {
   return {
-    mes: Number(mes),
-    anio: Number(anio),
+    desde: format(desde, 'yyyy-MM-dd'),
+    hasta: format(hasta, 'yyyy-MM-dd'),
     agrupar_por,
     ...(institucion !== 'todas' ? { institucion } : {}),
   };
 }
 
-async function fetchReporteAusencias(mes: string, anio: string, institucion: InstitucionFilter, agrupar_por: AgruparPorFilter): Promise<ReporteFila[]> {
+async function fetchReporteAusencias(desde: Date, hasta: Date, institucion: InstitucionFilter, agrupar_por: AgruparPorFilter): Promise<ReporteFila[]> {
   const { data } = await api.get<ReportesResponse>('/reportes/ausencias', {
-    params: buildReportParams(mes, anio, institucion, agrupar_por),
+    params: buildReportParams(desde, hasta, institucion, agrupar_por),
   });
 
   return normalizeReportes(data);
 }
 
-async function downloadReporteExcel(mes: string, anio: string, institucion: InstitucionFilter, agrupar_por: AgruparPorFilter) {
+async function downloadReporteExcel(desde: Date, hasta: Date, institucion: InstitucionFilter) {
   const response = await api.get<Blob>('/reportes/exportar', {
-    params: buildReportParams(mes, anio, institucion, agrupar_por),
+    params: {
+      desde: format(desde, 'yyyy-MM-dd'),
+      hasta: format(hasta, 'yyyy-MM-dd'),
+      ...(institucion !== 'todas' ? { institucion } : {}),
+    },
     responseType: 'blob',
   });
 
   const blobUrl = URL.createObjectURL(response.data);
   const fileNameParts = [
-    'reporte-asistencia',
-    agrupar_por,
-    anio,
-    mes.padStart(2, '0'),
+    'reporte-inasistencias',
+    format(desde, 'yyyyMMdd'),
+    format(hasta, 'yyyyMMdd'),
     institucion !== 'todas' ? institucion.toLowerCase() : 'todas',
   ];
   const link = document.createElement('a');
@@ -111,8 +102,8 @@ async function downloadReporteExcel(mes: string, anio: string, institucion: Inst
 
 export function ReportesPage() {
   const now = new Date();
-  const [mes, setMes] = useState(String(now.getMonth() + 1));
-  const [anio, setAnio] = useState(String(now.getFullYear()));
+  const [desde, setDesde] = useState<Date | undefined>(startOfMonth(now));
+  const [hasta, setHasta] = useState<Date | undefined>(now);
   const [institucion, setInstitucion] = useState<string>('todas');
   const [agruparPor, setAgruparPor] = useState<AgruparPorFilter>('docente');
   const [selectedReporte, setSelectedReporte] = useState<ReporteFila | null>(null);
@@ -134,7 +125,7 @@ export function ReportesPage() {
     return unique;
   }, [carreras]);
 
-  const reportParams = useMemo(() => ({ mes, anio, institucion, agruparPor }), [anio, institucion, mes, agruparPor]);
+  const reportParams = useMemo(() => ({ desde, hasta, institucion, agruparPor }), [desde, hasta, institucion, agruparPor]);
 
   const {
     data: reportes,
@@ -142,15 +133,16 @@ export function ReportesPage() {
     isError,
   } = useQuery({
     queryKey: ['reportes', 'ausencias', reportParams],
-    queryFn: () => fetchReporteAusencias(mes, anio, institucion, agruparPor),
-    enabled: Boolean(mes && anio),
+    queryFn: () => desde && hasta ? fetchReporteAusencias(desde, hasta, institucion, agruparPor) : Promise.resolve([]),
+    enabled: Boolean(desde && hasta),
   });
 
   const handleDownload = async () => {
+    if (!desde || !hasta) return;
     setIsDownloading(true);
 
     try {
-      await downloadReporteExcel(mes, anio, institucion, agruparPor);
+      await downloadReporteExcel(desde, hasta, institucion);
       toast.success('Excel descargado correctamente.');
     } catch {
       toast.error('Ocurrió un error al descargar el reporte.');
@@ -166,30 +158,38 @@ export function ReportesPage() {
           <h1 className="text-3xl font-semibold text-primary">Reportes Mensuales</h1>
           <p className="mt-1 text-sm text-muted-foreground">Consultá asistencia consolidada por docente, carrera o materia y exportá a Excel.</p>
         </div>
-
-        <div className="grid gap-3 sm:grid-cols-[140px_100px_130px_140px_auto] sm:items-end">
-          <div className="space-y-2">
-            <Label>Mes</Label>
-            <Select value={mes} onValueChange={setMes}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Mes" />
-              </SelectTrigger>
-              <SelectContent>
-                {monthOptions.map((month) => (
-                  <SelectItem key={month.value} value={month.value}>
-                    {month.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        <div className="flex flex-wrap items-end gap-3 xl:justify-end">
+          <div className="space-y-2 w-full sm:w-[160px]">
+            <Label>Desde</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !desde && "text-muted-foreground")}>
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {desde ? format(desde, "dd/MM/yyyy") : <span>Seleccionar fecha</span>}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0">
+                <Calendar mode="single" selected={desde} onSelect={(date) => date && setDesde(date)} />
+              </PopoverContent>
+            </Popover>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="anio">Año</Label>
-            <Input id="anio" type="number" min={2020} max={2100} value={anio} onChange={(event) => setAnio(event.target.value)} />
+          <div className="space-y-2 w-full sm:w-[160px]">
+            <Label>Hasta</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !hasta && "text-muted-foreground")}>
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {hasta ? format(hasta, "dd/MM/yyyy") : <span>Seleccionar fecha</span>}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0">
+                <Calendar mode="single" selected={hasta} onSelect={(date) => date && setHasta(date)} />
+              </PopoverContent>
+            </Popover>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-2 w-full sm:w-[150px]">
             <Label>Institución</Label>
             <Select value={institucion} onValueChange={(value: string) => setInstitucion(value)}>
               <SelectTrigger className="w-full">
@@ -208,7 +208,7 @@ export function ReportesPage() {
             </Select>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-2 w-full sm:w-[150px]">
             <Label>Agrupar por</Label>
             <Select value={agruparPor} onValueChange={(value: AgruparPorFilter) => setAgruparPor(value)}>
               <SelectTrigger className="w-full">
@@ -222,7 +222,7 @@ export function ReportesPage() {
             </Select>
           </div>
 
-          <Button onClick={handleDownload} disabled={isDownloading || !mes || !anio} className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-primary-foreground">
+          <Button onClick={handleDownload} disabled={isDownloading || !desde || !hasta} className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-primary-foreground w-full sm:w-auto">
             <Download className="h-4 w-4" />
             {isDownloading ? 'Descargando...' : 'Descargar Excel'}
           </Button>

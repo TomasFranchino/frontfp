@@ -142,11 +142,10 @@ export function EmergenciasPage() {
         <nav className="-mb-px flex space-x-6">
           <button
             onClick={() => setActiveTab('pendientes')}
-            className={`pb-4 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
-              activeTab === 'pendientes'
+            className={`pb-4 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'pendientes'
                 ? 'border-primary text-primary'
                 : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
-            }`}
+              }`}
           >
             Pendientes
             {emergencias && emergencias.length > 0 && (
@@ -157,11 +156,10 @@ export function EmergenciasPage() {
           </button>
           <button
             onClick={() => setActiveTab('historial')}
-            className={`pb-4 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === 'historial'
+            className={`pb-4 text-sm font-medium border-b-2 transition-colors ${activeTab === 'historial'
                 ? 'border-primary text-primary'
                 : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
-            }`}
+              }`}
           >
             Historial de Resueltas
           </button>
@@ -256,11 +254,10 @@ export function EmergenciasPage() {
                     <TableCell>{solicitud.fecha}</TableCell>
                     <TableCell>
                       <span
-                        className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium capitalize ${
-                          solicitud.estado === 'aprobada'
+                        className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium capitalize ${solicitud.estado === 'aprobada'
                             ? 'bg-green-100 text-green-700'
                             : 'bg-rose-100 text-rose-700'
-                        }`}
+                          }`}
                       >
                         {solicitud.estado}
                       </span>
@@ -274,7 +271,7 @@ export function EmergenciasPage() {
                         {solicitud.revisado_por_nombre && (
                           <p className="text-[10px] text-muted-foreground">
                             Por: {solicitud.revisado_por_nombre}
-                            {solicitud.revisado_en && ` (${new Date(solicitud.revisado_en).toLocaleDateString()} ${new Date(solicitud.revisado_en).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} hs)`}
+                            {solicitud.revisado_en && ` (${new Date(solicitud.revisado_en).toLocaleDateString()} ${new Date(solicitud.revisado_en).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} hs)`}
                           </p>
                         )}
                       </div>
