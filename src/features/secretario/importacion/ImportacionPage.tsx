@@ -219,17 +219,35 @@ export function ImportacionPage() {
     setIsDragging(false);
   }, []);
 
+  const handleFileSelect = useCallback((file: File | undefined) => {
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('El archivo excede los 5 MB permitidos.');
+      return;
+    }
+
+    const isExcelType =
+      file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+      file.type === 'application/vnd.ms-excel' ||
+      file.type === ''; // Fallback si el OS no detecta el MIME type
+
+    const isExcelExt = file.name.endsWith('.xlsx') || file.name.endsWith('.xls');
+
+    if (!isExcelType || !isExcelExt) {
+      toast.error('Solo se aceptan archivos Excel (.xlsx o .xls) válidos.');
+      return;
+    }
+
+    setSelectedFile(file);
+  }, []);
+
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file && (file.name.endsWith('.xlsx') || file.name.endsWith('.xls'))) {
-      setSelectedFile(file);
-    } else {
-      toast.error('Solo se aceptan archivos Excel (.xlsx o .xls)');
-    }
-  }, []);
+    handleFileSelect(e.dataTransfer.files?.[0]);
+  }, [handleFileSelect]);
 
   // ── Download plantilla ──────────────────────────────────────────────
 
@@ -436,8 +454,8 @@ export function ImportacionPage() {
               accept=".xlsx,.xls"
               className="hidden"
               onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) setSelectedFile(file);
+                handleFileSelect(e.target.files?.[0]);
+                if (fileInputRef.current) fileInputRef.current.value = ''; // Reset input so same file can be selected again
               }}
             />
           </div>
